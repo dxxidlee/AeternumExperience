@@ -14,19 +14,8 @@
 
   /* ---------------------------------------------------------------- field */
   canvas.layer{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
-  #back{z-index:1} #front{z-index:4}
-  #tiles{position:fixed;inset:0;z-index:2;pointer-events:none;overflow:hidden;
-         perspective:1100px;perspective-origin:50% 50%}
-  .tile{position:absolute;left:50%;top:50%;width:160px;height:120px;margin:-60px 0 0 -80px;
-        background:#f4f3ef;outline:1px solid var(--line);overflow:hidden;pointer-events:auto;
-        will-change:transform,opacity;cursor:pointer}
-  .tile img{width:100%;height:100%;object-fit:cover;display:block;
-            filter:grayscale(1) contrast(1.06);opacity:0;transition:opacity .7s ease}
-  .tile img.in{opacity:1}
-  .tile.hot{outline:2px solid var(--ink)}
-  .tile.focus{background:#fff;outline:1px solid var(--ink)}
-  .tile.focus img{object-fit:contain}
-  .tile.off,.tile.away{pointer-events:none}
+  #back{z-index:1} #mid{z-index:2} #front{z-index:4}
+  body.over{cursor:pointer}
 
   #reticle{position:fixed;left:0;top:0;width:44px;height:44px;margin:-22px;z-index:12;
            pointer-events:none;display:none}
@@ -99,7 +88,7 @@
          pointer-events:none;transition:opacity .34s ease}
   #plate.on{opacity:1;pointer-events:auto}
   #plate .shot{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-               max-width:78vw;max-height:76vh;filter:grayscale(1) contrast(1.05);opacity:.4}
+               max-width:78vw;max-height:76vh;opacity:.4}
   #plate svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   #plate .rules{position:absolute;inset:0;pointer-events:none}
   #plate .rules i{position:absolute;left:0;right:0;height:1px;background:var(--line)}
@@ -146,7 +135,7 @@
 </div>
 
 <canvas class="layer" id="back"></canvas>
-<div id="tiles"></div>
+<canvas class="layer" id="mid"></canvas>
 <canvas class="layer" id="front"></canvas>
 <div id="labels"></div>
 <div id="reticle"><i></i><b></b></div>
@@ -250,21 +239,31 @@ function place(plates){
   });
   // tightest regions first so they get room
   var cnt={}; C.forEach(function(c){ var k=c.dom+c.key; cnt[k]=(cnt[k]||0)+1; });
+  var buckets={};
+  C.forEach(function(c){ var k=c.dom+'|'+c.key; (buckets[k]||(buckets[k]=[])).push(c); });
   var order=P.slice().sort(function(a,b){ return (cnt[a.dom+a.key]||0)-(cnt[b.dom+b.key]||0) || a.i-b.i; });
-  var TH=TW*1.12;
+  var TH=TW*1.12, CELL=TH, grid={};
+  function gk(x,y,z){ return ((x/CELL)|0)+','+((y/CELL)|0)+','+((z/CELL)|0); }
+  C.forEach(function(c){ var k=gk(c.x[0],c.x[1],c.x[2]); (grid[k]||(grid[k]=[])).push(c); });
   order.forEach(function(q){
     var pref=nrm([hash(q.p[0],1)-.5,hash(q.p[0],2)-.5,hash(q.p[0],3)-.5]);
     var best=null, bs=-9, any=null, as=-9;
-    C.forEach(function(c){
-      if(c.dom!==q.dom||c.key!==q.key) return;
+    var cand=buckets[q.dom+'|'+q.key]||[];
+    for(var i=0;i<cand.length;i++){
+      var c=cand[i];
       var sc=c.n[0]*pref[0]+c.n[1]*pref[1]+c.n[2]*pref[2];
       if(c.live&&sc>bs){bs=sc;best=c;}
       if(sc>as){as=sc;any=c;}
-    });
+    }
     var pick=best||any;                     // region full: allow a touch of overlap rather than lie
     q.pos=pick.x.slice(); q.n=pick.n.slice(); q.c=q.none?[0,0,0]:VERT[q.dom]; q.R=q.none?SHELL:SR;
     q.crowded=!best;
-    C.forEach(function(c){ if(c.live&&len(sub(c.x,q.pos))<TH) c.live=false; });
+    var ix=(q.pos[0]/CELL)|0, iy=(q.pos[1]/CELL)|0, iz=(q.pos[2]/CELL)|0;
+    for(var a=-1;a<=1;a++) for(var b=-1;b<=1;b++) for(var d=-1;d<=1;d++){
+      var g=grid[(ix+a)+','+(iy+b)+','+(iz+d)];
+      if(!g) continue;
+      for(i=0;i<g.length;i++){ c=g[i]; if(c.live&&len(sub(c.x,q.pos))<TH) c.live=false; }
+    }
   });
   P.forEach(function(q){
     q.ok = VERT.every(function(v,k){ return (k===q.dom) || ((len(sub(q.pos,v))<SR)===q.mem[k]); })
@@ -294,28 +293,23 @@ PL.forEach(function(q){
   q.u=nrm(cross(q.n,up)); q.v=cross(q.u,q.n);
 });
 
-/* ---------------------------------------------------------------- tiles */
-var tilesEl=document.getElementById('tiles');
-PL.forEach(function(q){
-  var el=document.createElement('div'); el.className='tile'; el.dataset.i=q.i;
-  tilesEl.appendChild(el); q.el=el;
-  el.addEventListener('pointerenter',function(){ if(!dragging&&!handActive) setHover(q); });
-  el.addEventListener('pointerleave',function(){ if(hover===q&&!handActive) setHover(null); });
-});
+/* ---------------------------------------------------------------- tiles (one atlas, drawn on canvas) */
+var AW=192, AH=144, AC=16;
+function plateSrc(n){ return 'media/plates/'+String(n).padStart(3,'0')+'.jpg'; }
 var loaded=0, counter=document.getElementById('loaded');
-function loadWave(start,size){
-  for(var i=start;i<Math.min(start+size,N);i++)(function(q){
-    var img=new Image(); img.decoding='async'; img.alt='';
-    img.onload=function(){ if(img.classList.contains('in')) return; img.classList.add('in'); loaded++; counter.textContent=loaded; };
-    img.onerror=function(){ if(img.src!==q.p[3]) img.src=q.p[3]; };
-    img.src=thumb(q.p[3],320); q.el.appendChild(img); q.img=img;
-  })(PL[i]);
-  if(start+size<N) setTimeout(function(){ loadWave(start+size,size); },200);
-}
-loadWave(0,24);
-function sharpen(q){                         // bigger file once a plate is in focus
-  if(!q.img||q.sharp) return; q.sharp=true;
-  var hi=new Image(); hi.onload=function(){ q.img.src=hi.src; }; hi.src=thumb(q.p[3],900);
+var atlas=new Image(), atlasBmp=null, atlasReady=false;
+atlas.decoding='async';
+atlas.onload=function(){
+  loaded=N; counter.textContent=N; atlasReady=true;
+  if(typeof createImageBitmap==='function'){
+    createImageBitmap(atlas).then(function(b){ atlasBmp=b; });
+  }
+};
+atlas.src='media/atlas.jpg';
+function sharpen(q){                         // hi-res local file once a plate is in focus
+  if(q.hi) return;
+  var hi=new Image(); hi.decoding='async';
+  hi.src=plateSrc(q.p[0]); q.hi=hi;
 }
 
 var labelsEl=document.getElementById('labels'), labelBtns=[];
@@ -337,14 +331,17 @@ var dragging=false, lastX=0, lastY=0, moved=0;
 var handActive=false;
 setTimeout(function(){ sepTarget=0; syncApart(); },900);
 
-var back=document.getElementById('back'), front=document.getElementById('front');
-var bx=back.getContext('2d'), fx=front.getContext('2d'), W=0, H=0, DPR=1;
+var back=document.getElementById('back'), mid=document.getElementById('mid'), front=document.getElementById('front');
+var ctxOpts={alpha:true,desynchronized:true};
+var bx=back.getContext('2d',ctxOpts), mx=mid.getContext('2d',ctxOpts), fx=front.getContext('2d',ctxOpts);
+var W=0, H=0, DPR=1;
 function resize(){
-  DPR=Math.min(2,devicePixelRatio||1); W=innerWidth; H=innerHeight;
-  [back,front].forEach(function(c){ c.width=W*DPR; c.height=H*DPR; });
+  DPR=Math.min(1.5,devicePixelRatio||1); W=innerWidth; H=innerHeight;
+  [back,mid,front].forEach(function(c){ c.width=W*DPR; c.height=H*DPR; });
   U=Math.min(W,H)*0.22;
 }
 addEventListener('resize',resize); resize();
+var RING_N=48, vis=[];
 
 var CRX,SRX,CRY,SRY;
 function camRot(){ var rx=rotX*Math.PI/180, ry=rotY*Math.PI/180; CRX=Math.cos(rx);SRX=Math.sin(rx);CRY=Math.cos(ry);SRY=Math.sin(ry); }
@@ -383,13 +380,12 @@ function focusOn(q){
   goal={ ry:Math.atan2(n[0],-n[2])*180/Math.PI,
          rx:Math.max(-80,Math.min(80,Math.atan2(-n[1],h)*180/Math.PI)),
          dist:FOCUS_DIST };
-  PL.forEach(function(t){ t.el.classList.toggle('focus',t===q); });
   setHover(null); showFocus();
   document.body.classList.add('focused');
 }
 function unfocus(){
   if(!focus) return;
-  focus.el.classList.remove('focus'); focus=null;
+  focus=null;
   goal={ rx:rotX, ry:rotY, dist:HOME_DIST };
   showFocus();
   document.body.classList.remove('focused');
@@ -412,28 +408,32 @@ function showFocus(){
 }
 
 /* ---------------------------------------------------------------- draw */
-function ring(ctx,c,r,axis){
-  var cz=project(c).z, pts=[];
-  for(var i=0;i<=72;i++){
-    var t=i/72*Math.PI*2, ca=Math.cos(t)*r, sa=Math.sin(t)*r;
+function ring(ctx,c,r,axis,nSeg){
+  nSeg=nSeg||RING_N;
+  var cz=project(c).z, pts=new Array(nSeg+1);
+  for(var i=0;i<=nSeg;i++){
+    var t=i/nSeg*Math.PI*2, ca=Math.cos(t)*r, sa=Math.sin(t)*r;
     var p = axis===0 ? [c[0]+ca,c[1],c[2]+sa] : axis===1 ? [c[0],c[1]+ca,c[2]+sa] : [c[0]+ca,c[1]+sa,c[2]];
-    var s=project(p); s.f=s.z<cz; pts.push(s);
+    var s=project(p); s.f=s.z<cz; pts[i]=s;
   }
   var base=ctx.globalAlpha;
-  [[true,.5],[false,.16]].forEach(function(pass){
-    ctx.globalAlpha=base*pass[1]; ctx.beginPath();
-    for(var i=1;i<=72;i++){ if(pts[i].f!==pass[0]||pts[i].d<60) continue;
+  for(var pass=0;pass<2;pass++){
+    ctx.globalAlpha=base*(pass? .16:.5); ctx.beginPath();
+    var want=pass===0;
+    for(i=1;i<=nSeg;i++){ if(pts[i].f!==want||pts[i].d<60) continue;
       ctx.moveTo(pts[i-1].x,pts[i-1].y); ctx.lineTo(pts[i].x,pts[i].y); }
     ctx.stroke();
-  });
+  }
   ctx.globalAlpha=base;
 }
 
 function draw(){
   camRot();
   bx.setTransform(DPR,0,0,DPR,0,0); bx.clearRect(0,0,W,H);
+  mx.setTransform(DPR,0,0,DPR,0,0); mx.clearRect(0,0,W,H);
   fx.setTransform(DPR,0,0,DPR,0,0); fx.clearRect(0,0,W,H);
   var oc=project([0,0,0]);
+  var nSeg=dragging||(hands&&hands.grabbing)?24:RING_N;
 
   [0,1,2,3].map(function(k){ var c=centre(k); return {k:k,c:c,s:project(c)}; })
     .sort(function(a,b){ return b.s.z-a.s.z; })
@@ -447,7 +447,7 @@ function draw(){
         bx.globalAlpha = dimmed ? .22 : .85;
         bx.beginPath(); bx.arc(o.s.x,o.s.y,r,0,7); bx.stroke();
         bx.lineWidth=.7; bx.strokeStyle = dimmed ? '#d8d5cd' : '#b6b3ab';
-        ring(bx,o.c,SR,0); ring(bx,o.c,SR,1); ring(bx,o.c,SR,2);
+        ring(bx,o.c,SR,0,nSeg); ring(bx,o.c,SR,1,nSeg); ring(bx,o.c,SR,2,nSeg);
         bx.globalAlpha=1;
       }
       var dx=o.s.x-oc.x, dy=o.s.y-oc.y, dl=Math.hypot(dx,dy)||1;
@@ -459,51 +459,75 @@ function draw(){
 
   var s0=TW*U/160;
   lift += ((focus?1:0)-lift)*.08;
-  PL.forEach(function(q){
-    var w=worldPos(q), isF=q===focus, L=isF?lift:0;
-    if(L>0){ w=[w[0]+q.n[0]*.7*L, w[1]+q.n[1]*.7*L, w[2]+q.n[2]*.7*L]; }
+  vis.length=0;
+  var src=atlasBmp||atlas;
+  var hasAtlas=atlasReady&&src&&(src.width||src.naturalWidth);
+  for(var i=0;i<N;i++){
+    var q=PL[i], isF=q===focus, L=isF?lift:0;
+    var w=worldPos(q);
+    if(L>0) w=[w[0]+q.n[0]*.7*L, w[1]+q.n[1]*.7*L, w[2]+q.n[2]*.7*L];
     var s=project(w); q.scr=s; q.w=w;
-    if(s.d<70){ q.el.style.visibility='hidden'; return; }
-    q.el.style.visibility='';
-    var u=rot(q.u), v=rot(q.v), n=rot(q.n);
-    // does the face point at the camera?
-    var facing = -(n[0]*s.cx + n[1]*s.cy + n[2]*(dist+s.z)) > 0;
+    if(s.d<70){ q.facing=false; continue; }
+    var n=rot(q.n);
+    var facing=-(n[0]*s.cx+n[1]*s.cy+n[2]*(dist+s.z))>0;
     q.facing=facing;
-    if(!facing){ u=[-u[0],-u[1],-u[2]]; n=[-n[0],-n[1],-n[2]]; }   // read the far side unmirrored
-    var sc=s0*(1+(isF?3.6*L:0))*(hover===q&&!isF?1.35:1);
-    var tz=F-s.d;
-    q.el.style.transform='matrix3d('+
-      (u[0]*sc).toFixed(4)+','+(u[1]*sc).toFixed(4)+','+(-u[2]*sc).toFixed(4)+',0,'+
-      (v[0]*sc).toFixed(4)+','+(v[1]*sc).toFixed(4)+','+(-v[2]*sc).toFixed(4)+',0,'+
-      n[0].toFixed(4)+','+n[1].toFixed(4)+','+(-n[2]).toFixed(4)+',0,'+
-      s.cx.toFixed(2)+','+s.cy.toFixed(2)+','+tz.toFixed(2)+',1)';
-    var on=matches(q), depth=Math.max(0,Math.min(1,(s.z+3*U)/(6*U)));
-    var op = on ? (facing ? 1-depth*.45 : .2) : .05;
-    if(focus && !isF) op*= .3;
+    var on=matches(q);
+    var depth=Math.max(0,Math.min(1,(s.z+3*U)/(6*U)));
+    var op=on?(facing?1-depth*.45:.2):.05;
+    if(focus&&!isF) op*=.3;
     if(isF) op=1;
-    if(hover && hover!==q && on && !focus) op*= hover.key===q.key ? 1 : .4;
-    q.el.style.opacity=op.toFixed(3);
-    q.el.style.zIndex = isF ? 99999 : String(50000-Math.round(s.z));
-    q.el.classList.toggle('off',!on);
-    q.el.classList.toggle('away',!facing);
-  });
+    if(hover&&hover!==q&&on&&!focus) op*=hover.key===q.key?1:.4;
+    if(op<.03) continue;
+    var m=TW*U*s.k*(isF?3.2:1.3);
+    if(s.x<-m||s.x>W+m||s.y<-m||s.y>H+m) continue;
+    q._op=op; q._n=n; q._L=L; q._isF=isF;
+    vis.push(q);
+  }
+  vis.sort(function(a,b){ return b.scr.z-a.scr.z; });
+  mx.imageSmoothingEnabled=true;
+  mx.imageSmoothingQuality=dragging?'low':'medium';
+  for(i=0;i<vis.length;i++){
+    q=vis[i];
+    var u=rot(q.u), v=rot(q.v);
+    if(!q.facing){ u=[-u[0],-u[1],-u[2]]; }
+    var sc=s0*(1+(q._isF?3.6*q._L:0))*(hover===q&&!q._isF?1.35:1)*q.scr.k;
+    mx.setTransform(u[0]*sc*DPR,u[1]*sc*DPR,v[0]*sc*DPR,v[1]*sc*DPR,q.scr.x*DPR,q.scr.y*DPR);
+    mx.globalAlpha=q._op;
+    var hi=q.hi, useHi=q._isF&&hi&&hi.complete&&hi.naturalWidth;
+    if(useHi){
+      var iw=hi.naturalWidth, ih=hi.naturalHeight, rr=Math.min(160/iw,120/ih);
+      mx.fillStyle='#fff'; mx.fillRect(-80,-60,160,120);
+      mx.drawImage(hi,-iw*rr/2,-ih*rr/2,iw*rr,ih*rr);
+    } else if(hasAtlas){
+      var idx=q.i, col=idx%AC, row=(idx/AC)|0;
+      mx.drawImage(src,col*AW,row*AH,AW,AH,-80,-60,160,120);
+    } else {
+      mx.fillStyle='#f4f3ef'; mx.fillRect(-80,-60,160,120);
+    }
+    mx.strokeStyle=(hover===q&&!q._isF)||q._isF?'#111':'#d8d5cd';
+    mx.lineWidth=(hover===q||q._isF?2:1)/Math.max(sc,.001);
+    mx.strokeRect(-80,-60,160,120);
+  }
+  mx.globalAlpha=1;
+  mx.setTransform(DPR,0,0,DPR,0,0);
 
   var tA=sep*.2;
   fx.lineWidth=.6; fx.strokeStyle='#111';
   if(tA>.01){
     fx.globalAlpha=tA; fx.beginPath();
-    PL.forEach(function(q){
-      if(!matches(q)||q.none) return;
+    for(i=0;i<N;i++){
+      q=PL[i];
+      if(!matches(q)||q.none||!q.scr) continue;
       for(var k=0;k<4;k++){ if(!q.mem[k]||k===q.dom) continue;
         var c=project(centre(k)); fx.moveTo(q.scr.x,q.scr.y); fx.lineTo(c.x,c.y); }
-    });
+    }
     fx.stroke(); fx.globalAlpha=1;
   }
   var held=hover||focus;
-  if(held&&!held.none){
+  if(held&&!held.none&&held.scr){
     fx.lineWidth=1; fx.globalAlpha=.7; fx.setLineDash([3,3]); fx.beginPath();
-    for(var k=0;k<4;k++){ if(!held.mem[k]) continue;
-      var c=project(centre(k)); fx.moveTo(held.scr.x,held.scr.y); fx.lineTo(c.x,c.y); }
+    for(k=0;k<4;k++){ if(!held.mem[k]) continue;
+      c=project(centre(k)); fx.moveTo(held.scr.x,held.scr.y); fx.lineTo(c.x,c.y); }
     fx.stroke(); fx.setLineDash([]); fx.globalAlpha=1;
   }
 
@@ -525,6 +549,9 @@ function draw(){
 
 function frame(){
   hands.update();
+  if(typeof pv!=='undefined' && pv.classList.contains('on')){
+    requestAnimationFrame(frame); return;
+  }
   if(goal){
     var e=reduce?1:.075;
     rotY += (((goal.ry-rotY)%360+540)%360-180)*e;
@@ -550,7 +577,7 @@ var readout=document.getElementById('readout');
 function setHover(q){
   if(hover===q) return;
   hover=q;
-  PL.forEach(function(t){ t.el.classList.toggle('hot', t===q && t!==focus); });
+  document.body.classList.toggle('over', !!(q && !dragging && !focus));
   if(focus) return;
   if(!q){ readout.innerHTML=filterText(); return; }
   readout.innerHTML='<b>'+String(q.p[0]).padStart(3,'0')+'</b> &nbsp; '+esc(q.p[1].replace(/\.\s*$/,''))+
@@ -612,16 +639,21 @@ addEventListener('pointerdown',function(e){
   document.body.classList.add('dragging');
 });
 addEventListener('pointermove',function(e){
-  if(!dragging) return;
-  var dx=e.clientX-lastX, dy=e.clientY-lastY;
-  lastX=e.clientX; lastY=e.clientY; moved+=Math.abs(dx)+Math.abs(dy);
-  if(moved>6){ goal=null; rotY+=dx*.25; rotX-=dy*.25; velY=dx*.25; velX=-dy*.25; }
+  if(dragging){
+    var dx=e.clientX-lastX, dy=e.clientY-lastY;
+    lastX=e.clientX; lastY=e.clientY; moved+=Math.abs(dx)+Math.abs(dy);
+    if(moved>6){ goal=null; rotY+=dx*.25; rotX-=dy*.25; velY=dx*.25; velX=-dy*.25; }
+    return;
+  }
+  if(handActive||pv.classList.contains('on')) return;
+  if(e.target.closest('.panel,#plate,#labels,.edge,header,footer')) return;
+  setHover(pick(e.clientX,e.clientY));
 });
 addEventListener('pointerup',function(e){
   var was=dragging; dragging=false; document.body.classList.remove('dragging');
   if(!was || moved>=6) return;
-  var t=e.target.closest&&e.target.closest('.tile');
-  if(t){ var q=PL[+t.dataset.i]; if(q===focus) openPlate(q.i); else focusOn(q); }
+  var q=pick(e.clientX,e.clientY);
+  if(q){ if(q===focus) openPlate(q.i); else focusOn(q); }
   else if(focus) unfocus();
 });
 addEventListener('wheel',function(e){
@@ -782,9 +814,15 @@ camBtn.onclick=function(){
     .then(function(){ return loadScript(CDN+'hands.js'); })
     .then(function(){
       var h=new Hands({locateFile:function(f){ return CDN+f; }});
-      h.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.6,minTrackingConfidence:.6});
+      h.setOptions({maxNumHands:2,modelComplexity:0,minDetectionConfidence:.55,minTrackingConfidence:.5});
       h.onResults(onHands);
-      return new Camera(vid,{onFrame:function(){ return h.send({image:vid}); },width:640,height:480}).start();
+      var lastSend=0;
+      return new Camera(vid,{onFrame:function(){
+        var now=performance.now();
+        if(now-lastSend<45) return Promise.resolve();
+        lastSend=now;
+        return h.send({image:vid});
+      },width:320,height:240}).start();
     })
     .then(function(){ camOn=true; camBtn.textContent='hand control on'; camBtn.setAttribute('aria-pressed','true');
       document.getElementById('eye').classList.add('on'); gestEl.classList.add('on');
@@ -818,7 +856,7 @@ function fitSize(lines){
 function openPlate(i){
   current=i; var q=PL[i], p=q.p, num=String(p[0]).padStart(3,'0');
   if(focus!==q) focusOn(q);
-  document.getElementById('pShot').src=thumb(p[3],1280);
+  document.getElementById('pShot').src=plateSrc(p[0]);
   var lines=capsLines(p[1]).concat(['AETERNUM AGENDA','PLATE '+num]);
   var type=document.getElementById('pType');
   type.style.fontSize=fitSize(lines);
