@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aeternum Agenda / Four Spheres</title>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{ --ink:#111; --dim:#8b8880; --line:#d8d5cd; --bg:#fff;
+         --serif:"EB Garamond",Garamond,serif; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--serif)}
+  body{cursor:grab;touch-action:none} body.dragging{cursor:grabbing}
+  button{font:inherit;background:none;border:0;cursor:pointer;color:inherit}
+  button:focus-visible{outline:1px solid var(--ink);outline-offset:3px}
+
+  /* ---------------------------------------------------------------- field */
+  canvas.layer{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+  #back{z-index:1} #front{z-index:4}
+  #tiles{position:fixed;inset:0;z-index:2;pointer-events:none;overflow:hidden;
+         perspective:1100px;perspective-origin:50% 50%}
+  .tile{position:absolute;left:50%;top:50%;width:160px;height:120px;margin:-60px 0 0 -80px;
+        background:#f4f3ef;outline:1px solid var(--line);overflow:hidden;pointer-events:auto;
+        will-change:transform,opacity;cursor:pointer}
+  .tile img{width:100%;height:100%;object-fit:cover;display:block;
+            filter:grayscale(1) contrast(1.06);opacity:0;transition:opacity .7s ease}
+  .tile img.in{opacity:1}
+  .tile.hot{outline:2px solid var(--ink)}
+  .tile.focus{background:#fff;outline:1px solid var(--ink)}
+  .tile.focus img{object-fit:contain}
+  .tile.off,.tile.away{pointer-events:none}
+
+  #reticle{position:fixed;left:0;top:0;width:44px;height:44px;margin:-22px;z-index:12;
+           pointer-events:none;display:none}
+  #reticle.on{display:block}
+  #reticle i{position:absolute;inset:0;border:1px solid var(--ink);border-radius:50%;
+             transition:transform .15s ease,background .15s ease}
+  #reticle b{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:var(--ink);border-radius:50%}
+  #reticle.fist i{transform:scale(.6);border-width:2px}
+  #reticle.pinch i{transform:scale(.4);background:rgba(17,17,17,.15)}
+  #reticle.open i{transform:scale(1.4);border-style:dashed}
+  #reticle.target i{transform:scale(1.25)}
+
+  .edge{position:fixed;top:30vh;bottom:30vh;width:90px;z-index:9;display:none;align-items:center;
+        font-size:11px;letter-spacing:.2em;color:var(--dim)}
+  .edge.on{display:flex}
+  .edge.hot{color:var(--ink);background:linear-gradient(90deg,rgba(17,17,17,.04),transparent)}
+  #prevZone{left:0;justify-content:flex-start;padding-left:22px}
+  #nextZone{right:0;justify-content:flex-end;padding-right:22px}
+  #nextZone.hot{background:linear-gradient(270deg,rgba(17,17,17,.04),transparent)}
+
+  #gestures{position:fixed;left:166px;bottom:24px;z-index:8;display:none;font-size:10.5px;
+            letter-spacing:.1em;color:#b6b3ab;line-height:1.85}
+  #gestures.on{display:block}
+  #gestures div b{display:inline-block;width:92px;font-weight:400}
+  #gestures div.on{color:var(--ink)}
+  #labels{position:fixed;inset:0;z-index:5;pointer-events:none}
+  #labels button{position:absolute;left:0;top:0;pointer-events:auto;font-size:12px;
+        letter-spacing:.3em;text-transform:uppercase;padding:4px 6px;white-space:nowrap;
+        transform:translate(-50%,-100%);color:var(--dim);transition:color .2s}
+  #labels button:hover,#labels button.on{color:var(--ink)}
+
+  /* ---------------------------------------------------------------- chrome */
+  header{position:fixed;top:0;left:0;right:0;padding:18px 22px;z-index:8;
+         display:flex;align-items:baseline;gap:16px;pointer-events:none}
+  h1{font-size:13px;font-weight:500;letter-spacing:.34em;text-transform:uppercase}
+  header .sub{font-size:11px;color:var(--dim);letter-spacing:.14em}
+
+  .panel{position:fixed;top:64px;z-index:8;display:flex;flex-direction:column}
+  .panel h2{font-size:9.5px;font-weight:400;letter-spacing:.2em;color:#b6b3ab;margin:14px 0 4px}
+  .panel h2:first-child{margin-top:0}
+  .panel button{border-left:1px solid var(--line);padding:3px 0 3px 10px;font-size:10.5px;
+        letter-spacing:.1em;color:var(--dim);text-align:left;transition:color .2s,border-color .2s}
+  .panel button:hover{color:var(--ink)}
+  .panel button[aria-pressed=true]{color:var(--ink);border-left-color:var(--ink)}
+  .panel button:disabled{color:#d4d1c9;cursor:default}
+  .ct{color:#c3c0b8;margin-left:6px}
+  #left{left:22px;max-width:240px}
+  #right{right:22px;align-items:flex-end;text-align:right}
+  #right button{border-left:0;border-right:1px solid var(--line);padding:3px 10px 3px 0;text-align:right}
+  #right button[aria-pressed=true]{border-right-color:var(--ink)}
+
+  #readout{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:8;
+           text-align:center;font-size:11px;letter-spacing:.12em;color:var(--dim);
+           pointer-events:none;max-width:52vw;line-height:1.7}
+  #readout b{color:var(--ink);font-weight:400}
+
+  footer{position:fixed;right:22px;bottom:22px;z-index:8;font-size:10px;letter-spacing:.12em;
+         color:#b6b3ab;text-align:right;line-height:1.9;pointer-events:none}
+
+  #eye{position:fixed;left:22px;bottom:22px;width:128px;height:128px;border-radius:50%;
+       overflow:hidden;z-index:8;pointer-events:none;background:#fff;display:none;
+       box-shadow:0 0 0 1px var(--line),0 0 0 7px rgba(255,255,255,.85),0 0 0 8px var(--line)}
+  #eye.on{display:block}
+  #eye video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);
+             filter:grayscale(1) contrast(1.1);opacity:.9}
+  #eye canvas{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1)}
+
+  /* ---------------------------------------------------------------- plate view */
+  #plate{position:fixed;inset:0;z-index:20;background:var(--bg);opacity:0;
+         pointer-events:none;transition:opacity .34s ease}
+  #plate.on{opacity:1;pointer-events:auto}
+  #plate .shot{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+               max-width:78vw;max-height:76vh;filter:grayscale(1) contrast(1.05);opacity:.4}
+  #plate svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  #plate .rules{position:absolute;inset:0;pointer-events:none}
+  #plate .rules i{position:absolute;left:0;right:0;height:1px;background:var(--line)}
+  #plate .type{position:absolute;inset:0;display:flex;flex-direction:column;
+               align-items:center;justify-content:center;padding:0 3vw;pointer-events:none}
+  #plate .type div{line-height:.97;letter-spacing:.015em;text-transform:uppercase;
+                   text-align:center;white-space:nowrap}
+  #plate .corner{position:absolute;bottom:20px;font-size:12px;letter-spacing:.12em}
+  #plate .corner.l{left:22px} #plate .corner.r{right:22px}
+  #plate .top{position:absolute;top:20px;font-size:10px;letter-spacing:.2em;
+              text-transform:uppercase;color:var(--dim);line-height:1.8}
+  #plate .top.l{left:22px} #plate .top.r{right:22px;text-align:right}
+  #plate .top a{color:var(--dim);text-decoration:none;border-bottom:1px solid var(--line)}
+  #plate .top a:hover{color:var(--ink)}
+  #plate .nav{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);
+              font-size:10px;letter-spacing:.16em;color:var(--dim)}
+  #plate .nav button{font-size:10px;letter-spacing:.16em;color:var(--dim);padding:0 10px}
+  #plate .nav button:hover{color:var(--ink)}
+
+  body.focused .panel,body.focused footer,body.focused header .sub{opacity:.12}
+  body.focused .panel:hover{opacity:1}
+  .panel,footer,header .sub{transition:opacity .4s}
+  @media (max-width:760px){
+    .panel,footer,#gestures{display:none!important}
+    #readout{max-width:90vw}
+  }
+</style>
+
+<header><h1>Aeternum Agenda</h1><span class="sub">256 plates, four spheres</span></header>
+
+<nav class="panel" id="left">
+  <h2>chapters</h2><div id="chapters" style="display:contents"></div>
+  <h2>regions</h2><div id="regions" style="display:contents"></div>
+</nav>
+
+<div class="panel" id="right">
+  <h2><span id="loaded">0</span> / 256 loaded</h2>
+  <button id="apart" aria-pressed="false">pull apart</button>
+  <button id="path" aria-pressed="false">show chapter path</button>
+  <button id="spin" aria-pressed="true">rotation</button>
+  <button id="camBtn" aria-pressed="false">hand control</button>
+  <button id="reset">reset view</button>
+  <h2 id="handState">camera off</h2>
+</div>
+
+<canvas class="layer" id="back"></canvas>
+<div id="tiles"></div>
+<canvas class="layer" id="front"></canvas>
+<div id="labels"></div>
+<div id="reticle"><i></i><b></b></div>
+<button class="edge" id="prevZone">&larr; prev</button>
+<button class="edge" id="nextZone">next &rarr;</button>
+
+<div id="readout"></div>
+<div id="eye"><video id="vid" playsinline muted></video><canvas id="hand"></canvas></div>
+<div id="gestures">
+  <div data-g="point"><b>point</b>aim at a plate</div>
+  <div data-g="pinch"><b>pinch</b>fly to it, pinch again to open</div>
+  <div data-g="fist"><b>fist</b>grab and turn</div>
+  <div data-g="open"><b>open hand</b>push in or pull back to zoom</div>
+  <div data-g="two"><b>both hands</b>spread to pull the spheres apart</div>
+</div>
+
+<footer id="foot">
+  drag to orbit &nbsp;·&nbsp; scroll to zoom &nbsp;·&nbsp; click a plate to fly to it<br>
+  click again to open &nbsp;·&nbsp; arrows step through &nbsp;·&nbsp; esc backs out
+</footer>
+<div id="plate">
+  <img class="shot" id="pShot" alt="">
+  <svg id="pArcs" viewBox="0 0 1000 600" preserveAspectRatio="none"></svg>
+  <div class="rules" id="pRules"></div>
+  <div class="type" id="pType"></div>
+  <div class="top l" id="pChapter"></div>
+  <div class="top r" id="pSrc"></div>
+  <div class="corner l" id="pNumL"></div>
+  <div class="corner r" id="pNumR"></div>
+  <div class="nav"><button id="pPrev">&larr; prev</button>esc to close<button id="pNext">next &rarr;</button></div>
+</div>
+
+<script>
+const PLATES=[[1,"Fritz Ronnefeldt distributing medicine. Photograph.","I","https://iiif.wellcomecollection.org/image/V0028015/full/2048%2C/0/default.jpg","SALES AND FIELD OPERATIONS"],[2,"A machi, or medicine woman, Araucania, Chile. Photograph.","I","https://iiif.wellcomecollection.org/image/V0015995/full/2048%2C/0/default.jpg","PRECLINICAL"],[3,"A Liberian medicine man or shaman, West Africa. Halftone.","I","https://iiif.wellcomecollection.org/image/V0015946ER/full/2048%2C/0/default.jpg","PRECLINICAL"],[4,"A medicine vendor holding up a small flask of medicine for sale. Red chalk drawing attributed to Nicolaes Walraven van Haeften. Illustration.","I","https://iiif.wellcomecollection.org/image/b11939825_L0077026.JP2/full/2048%2C/0/default.jpg","PRECLINICAL"],[5,"A medicine man or shaman in Africa. Process print, 1910. Photograph.","I","https://iiif.wellcomecollection.org/image/V0015945EL/full/2048%2C/0/default.jpg","PRECLINICAL"],[6,"An itinerant medicine vendor selling a medicine to a man whose son has a poorly arm. Engraving by P. da Colle after N. Cavalli after F. Maggiotto.","I","https://iiif.wellcomecollection.org/image/V0016209/full/2048%2C/0/default.jpg","PRECLINICAL"],[7,"Itinerant medicine vendors in Rome. Oil painting attributed to Dirk Helmbreker.","I","https://iiif.wellcomecollection.org/image/b12028447_V0017579-RA-RA.jp2/full/2048%2C/0/default.jpg","PRECLINICAL"],[8,"A Gazaland medicine man or shaman, equatorial Africa. Halftone after Dudley Kidd. Photograph.","I","https://iiif.wellcomecollection.org/image/V0015945ER/full/2048%2C/0/default.jpg","PRECLINICAL"],[9,"A \"theatre\" of medicine and surgery. Watercolour by Johann Heinrich Ramberg, ca. 1800. Painting.","I","https://iiif.wellcomecollection.org/image/b15376795_L0031629-LH-LH.jp2/full/2048%2C/0/default.jpg","PRECLINICAL"],[10,"A major discussing medicine with two doctors. Wood engraving after G. Du Maurier. Illustration.","I","https://iiif.wellcomecollection.org/image/V0011607/full/2048%2C/0/default.jpg","PRECLINICAL"],[11,"A doctor being tricked into drinking his own medicine. Engraving, 1784. Illustration.","I","https://iiif.wellcomecollection.org/image/V0010958/full/2048%2C/0/default.jpg","PRECLINICAL"],[12,"Uganda: two Ankole medicine men in ceremonial costume. Photograph.","I","https://iiif.wellcomecollection.org/image/V0031137EL/full/2048%2C/0/default.jpg","PRECLINICAL"],[13,"An eccentric itinerant medicine vendor who collects old books, outside a bookshop. Etching.","I","https://iiif.wellcomecollection.org/image/V0016217/full/2048%2C/0/default.jpg","PRECLINICAL"],[14,"Richard Parnell, doctor of medicine and natural historian. Oil painting by Norman Macbeth.","I","https://iiif.wellcomecollection.org/image/V0018048/full/2048%2C/0/default.jpg","PRECLINICAL"],[15,"A medicine vendor selling antidotes to snake poison. Etching by G.M. Mitelli. Illustration.","I","https://iiif.wellcomecollection.org/image/b1178409x_M0013726-LH-RA.jp2/full/2048%2C/0/default.jpg","PRECLINICAL"],[16,"A doctor of medicine in Oxford University wearing academic dress. Engraving by G. Edwards, 1673. Engraving.","I","https://iiif.wellcomecollection.org/image/V0016007/full/2048%2C/0/default.jpg","PRECLINICAL"],[17,"A sick man stirring his bitter medicine. Mezzotint by H. Dawe, 1824, after M.W. Sharp.","I","https://iiif.wellcomecollection.org/image/V0015253/full/2048%2C/0/default.jpg","PRECLINICAL"],[18,"A fentanyl transdermal patch with a release rate of 12 micrograms per hour, on a person's arm. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/A_generic_fentanyl_transdermal_patch%2C_with_a_release_rate_of_12mcg_per_hour%2C_applied_to_the_skin_%28cropped%29.jpg/1920px-A_generic_fentanyl_transdermal_patch%2C_with_a_release_rate_of_12mcg_per_hour%2C_applied_to_the_skin_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[19,"Theranos Logo. Graphic.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Theranos_Logo.svg/3840px-Theranos_Logo.svg.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[20,"PecFent 100mcg. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/3/3b/PecFent_100mcg.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[21,"Elizabeth Holmes at a Nuclear Nonproliferation Discussion. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Elizabeth_Holmes_at_a_Nuclear_nonproliferation_discussion_in_2013_-_130417-D-NI589-107_%28cropped%29.jpg/500px-Elizabeth_Holmes_at_a_Nuclear_nonproliferation_discussion_in_2013_-_130417-D-NI589-107_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[22,"Professor Ernst Bumm Operating On A Male Patient. Photogravure.","II","https://upload.wikimedia.org/wikipedia/commons/2/20/Professor_Ernst_Bumm_operating_on_a_male_patient%2C_other_doct_Wellcome_L0002549.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail_unscaled&_=20141002205432","CLINICAL AFFAIRS AND THE PATIENT"],[23,"Elizabeth Holmes at Stanford University, 2013. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Elizabeth_Holmes_at_a_Nuclear_nonproliferation_discussion_in_2013_-_130417-D-NI589-107_%28cropped_2%29.jpg/500px-Elizabeth_Holmes_at_a_Nuclear_nonproliferation_discussion_in_2013_-_130417-D-NI589-107_%28cropped_2%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[24,"Fentanyl lollipops Actiq 200mcg. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Fentanylov%C3%A9_l%C3%ADzatko.jpg/960px-Fentanylov%C3%A9_l%C3%ADzatko.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[25,"A VIOXX (rofecoxib) sample blister pack. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/VIOXX_sample_blister_pack.jpg/500px-VIOXX_sample_blister_pack.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[26,"A patient anonymised by hospital life. Colour giclée print by Emily Brown, 2004.","II","https://thumb.wikimedia.org/wikipedia/commons/thumb/7/77/A_Patient_Anonymised_by_Hospital_Life-_unframed_version_Wellcome_L0037325.jpg/1280px-A_Patient_Anonymised_by_Hospital_Life-_unframed_version_Wellcome_L0037325.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail&_=20141012134938","CLINICAL AFFAIRS AND THE PATIENT"],[27,"A doctor draws blood from one of the Tuskegee test subjects. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Tuskegee-syphilis-study_doctor-injecting-subject.jpg/960px-Tuskegee-syphilis-study_doctor-injecting-subject.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[28,"Actiq 30 Pack 600mcg Fentanyl Base. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/e/e9/Actiq-30-pack-600mcg-fentanyl-base.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[29,"Tuskegee Syphilis Study Doctor injects subject with Placebo. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/8/80/Tuskegee-syphilis-study_doctor_injects_subject_with_placebo.gif?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[30,"Hospital Train. Photograph.","II","https://www.worldwar1centennial.org/images/medicine%20in%20WW1/CommZ/OFF_hospital_train.jpg","CLINICAL AFFAIRS AND THE PATIENT"],[31,"Tuskegee Syphilis Experiment Test Subjects. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/1/11/Tuskegee-syphilis-experiment-test-subjects.gif?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[32,"Fentanyl 2mg. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/e/eb/Fentanyl._2_milligrams._A_lethal_dose_in_most_people.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[33,"Tuskegee Letter. Scan.","II","https://upload.wikimedia.org/wikipedia/commons/0/02/Tuskegeeletter.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[34,"Communicable Disease Center (CDC) orientation course in session at the former Lawson General Hospital in Chamblee, Georgia. Photograph.","II","https://wwwn.cdc.gov/phil///PHIL_Images/31770/31770_lores.jpg","CLINICAL AFFAIRS AND THE PATIENT"],[35,"Tuskegee Syphilis Study Autopsy Request. Scan.","II","https://upload.wikimedia.org/wikipedia/commons/8/8f/Tuskegee-syphilis-study_autopsy-request.gif?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[36,"Naloxone Kit in Calgary, Canada. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/e/ec/Naloxone_kit.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[37,"Tuskegee Syphilis Experiment Table Subjects. Scan.","II","https://upload.wikimedia.org/wikipedia/commons/b/b9/Tuskegee-syphilis-experiment_table-subjects.gif?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[38,"Metropolitan Atlanta hospital during the Study on the Efficacy of Nosocomial Infection Control (SENIC). Photograph.","II","https://wwwn.cdc.gov/phil///PHIL_Images/30146/30146_lores.jpg","CLINICAL AFFAIRS AND THE PATIENT"],[39,"Tuskegee Syphilis Study Termination Memo. Scan.","II","https://upload.wikimedia.org/wikipedia/commons/1/1f/Tuskegee-syphilis-study_termination-memo.gif?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[40,"Naloxone Kit. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/NaloxoneKit.jpg/3840px-NaloxoneKit.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[41,"Patients from the Guatemalan psychiatric hospital who participated as test subjects in the syphilis experiments between 1946 and 1948. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/3/38/160223_SCI_Guatemala-STD-Experiments-Victim-04-850px.jpg.CROP.original-original.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[42,"A 21mg dose nicotine patch applied to the left arm. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Nicoderm.JPG/500px-Nicoderm.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[43,"Unit 731 Complex. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/b/bc/Unit_731_-_Complex.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[44,"A localized reaction to intravenous morphine caused by histamine release in the veins. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/MorphineRx.JPG/500px-MorphineRx.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[45,"Building of the Unit 731 bioweapon facility in Harbin. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/c/ca/Building_on_the_site_of_the_Harbin_bioweapon_facility_of_Unit_731_%E9%96%A2%E6%9D%B1%E8%BB%8D%E9%98%B2%E7%96%AB%E7%B5%A6%E6%B0%B4%E9%83%A8%E6%9C%AC%E9%83%A8731%E9%83%A8%E9%9A%8A%EF%BC%88%E7%9F%B3%E4%BA%95%E9%83%A8%E9%9A%8A%EF%BC%89%E6%97%A5%E8%BB%8D%E7%AC%AC731%E9%83%A8%E9%9A%8A%E6%97%A7%E5%9D%80_PB121201.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[46,"A transdermal patch which delivers medication is applied to the skin in a medical setting. The patch is labelled with the time and date of administration as well as the administrator's initials. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Applying_transdermal_patch.jpg/500px-Applying_transdermal_patch.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[47,"Close-up photo of the Unit 731 main \"square building\" taken by Unit 731's aviation and photography class in 1940. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/a/af/A_close_up_photo_of_the_Unit_731_square_building_taken_by_the_aviation_and_photography_class_of_Unit_731_in_1940.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[48,"Advertisement for curing morphine addiction, c. 1900. Graphic.","II","https://upload.wikimedia.org/wikipedia/en/1/1c/MorphineAdvertisement1900_-_no_watermark.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[49,"Ruins of a boiler building at the Unit 731 bioweapons facility. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/6/6f/Building_on_the_site_of_the_Harbin_bioweapon_facility_of_Unit_731_%E9%96%A2%E6%9D%B1%E8%BB%8D%E9%98%B2%E7%96%AB%E7%B5%A6%E6%B0%B4%E9%83%A8%E6%9C%AC%E9%83%A8731%E9%83%A8%E9%9A%8A%EF%BC%88%E7%9F%B3%E4%BA%95%E9%83%A8%E9%9A%8A%EF%BC%89%E6%97%A5%E8%BB%8D%E7%AC%AC731%E9%83%A8%E9%9A%8A%E6%97%A7%E5%9D%80_PB121178a_%E3%83%9C%E3%82%A4%E3%83%A9%E3%83%BC%E6%A5%9D%E8%B7%A1.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[50,"Sample transdermal patches. On left is a 'reservoir' type, on the right a 'Single-layer Drug-in-Adhesive' version. Both contain exactly the same active ingredient with identical release rates. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Transdermal_patches.jpg/500px-Transdermal_patches.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[51,"A sketch of the prison cells drawn by a Unit 731 staff member. The octagon represents the pressure chamber. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/5/53/A_sketch_of_the_prison_cells%2C_done_by_a_member_of_Unit_731._The_octagonal_sketch_represents_the_pressure_chamber.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[52,"A two milligram dose of fentanyl powder, on a pencil tip, is a lethal amount for most people. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/2_milligrams_of_fentanyl_on_pencil_tip._A_lethal_dose_for_most_people._US_Drug_Enforcement_Administration.jpg/3840px-2_milligrams_of_fentanyl_on_pencil_tip._A_lethal_dose_for_most_people._US_Drug_Enforcement_Administration.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[53,"Scan of Yoshimura Hisato's frostbite research data. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/7/72/Scan_Of_Yoshimura_Hisato%27s_Frostbite_Research_Data.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[54,"A venipuncture performed using a vacutainer. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/9/95/Blooddraw.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[55,"Shirō Ishii, commander of Unit 731. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/a/ae/Shiro-ishii.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[56,"OxyContin Branded Oxycodone 10mg (Number Side). Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/e/e2/OxyContin_branded_oxycodone_10mg_%28number_side%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[57,"The Unit 731 square building during its demolition in 1945. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/7/7e/A_photograph_of_the_Unit_731_square_building_taken_during_its_destruction_in_1945.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[58,"Vacutainer tubes used in the collection of blood. During venipuncture, pressure differences between the vein and the vacuum in the Vacutainer forces blood into the tube. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/e/ee/Vacutainer_blood_bottles.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[59,"General Shiro Ishii performing vivisection on a prisoner of Unit 731. Photograph.","II","https://www.pacificatrocities.org/uploads/1/2/2/9/12298219/unit-731-human-experiments-page_orig.jpg","CLINICAL AFFAIRS AND THE PATIENT"],[60,"Midazolam 1 & 5 mg/mL injections (Canada). Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Midazolam.JPG/500px-Midazolam.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[61,"Japan’s Unit 731 conducting biological warfare research in Jilin province, China, in 1940. Photograph.","II","https://i.guim.co.uk/img/media/d954da365ec496defb4edac5c69b1a879bee0673/0_0_1088_653/master/1088.jpg?width=1900&dpr=2&s=none&crop=none","CLINICAL AFFAIRS AND THE PATIENT"],[62,"Subject blood draw, c. 1953. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Tuskegee_study.jpg/500px-Tuskegee_study.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[63,"A 30-tablet pharmacy stock bottle of Rezulin (troglitazone) (400 mg) from Parke-Davis. Manufactured 1997. Shown also is one broken tablet. Tablet branding is PD353. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Rezulin.JPG/1920px-Rezulin.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[64,"Temazepam (Normison) 10mg tablets. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Normison.jpg/500px-Normison.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[65,"One of the original Sunday Times reports on the thalidomide scandal. Photograph.","II","https://i.guim.co.uk/img/static/sys-images/Guardian/Pix/pictures/2014/11/14/1415989811668/Thalidomide-newspaper-010.jpg?width=380&dpr=2&s=none&crop=none","REGULATORY AND LEGAL"],[66,"Still photo of a venipuncture procedure. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/Venipuncture_using_a_BD_Vacutainer.JPG/1920px-Venipuncture_using_a_BD_Vacutainer.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[67,"Spiel auf Zeit. Photograph.","II","https://cdn.prod.www.spiegel.de/images/ef6e659c-0001-0004-0000-000000596972_w1600_r1.3466928251121075_fpx33.41_fpy44.99.webp","REGULATORY AND LEGAL"],[68,"Frisium® (clobazam) 10mg tablet blister pack. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Frisium.jpg/3840px-Frisium.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[69,"Erdrückende Beweislast. Photograph.","II","https://cdn.prod.www.spiegel.de/images/f11890c4-0001-0004-0000-000000596966_w1600_r0.7166666666666667_fpx44.98_fpy50.87.webp","REGULATORY AND LEGAL"],[70,"An elastic tourniquet used to temporarily restrict blood flow. The tourniquet distends the veins, making them more palpable and visible. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Pr%C3%A4meta_tourniquet-4981.jpg/3840px-Pr%C3%A4meta_tourniquet-4981.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[71,"Häftlinge im KZ Buchenwald. Photograph.","II","https://cdn.prod.www.spiegel.de/images/861fa052-0001-0004-0000-000000596967_w1600_r1.196014828544949_fpx37.63_fpy45.webp","REGULATORY AND LEGAL"],[72,"Diazepam 2mg and 5mg diazepam tablets, which are commonly used in the treatment of benzodiazepine withdrawal. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/b/b7/Diazepam2mgand5mgtablets.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[73,"Unbehelligter Aufstieg. Photograph.","II","https://cdn.prod.www.spiegel.de/images/76673426-0001-0004-0000-000000596971_w1600_r1.3053921568627451_fpx52.09_fpy50.webp","REGULATORY AND LEGAL"],[74,"Use of real time monitoring of the heart in an intensive care unit in a German hospital (2015), the monitoring screen above the patient displaying an electrocardiogram and various values of parameters of the heart like heart rate and blood pressure. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/5/53/Patient_lying_in_hospital_bed_in_intensive_care_unit_in_Germany_in_2015.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[75,"Leben mit dem Drama. Photograph.","II","https://cdn.prod.www.spiegel.de/images/61a78d55-0001-0004-0000-000000596969_w1600_r0.94580078125_fpx49.98_fpy51.03.webp","REGULATORY AND LEGAL"],[76,"A variety of methaqualone pills and capsules. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/f/f2/Quaalude.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[77,"Kleiner Mann, große Karriere. Photograph.","II","https://cdn.prod.www.spiegel.de/images/016004b0-0001-0004-0000-000000596970_w1600_r0.7071428571428572_fpx50_fpy35.36.webp","REGULATORY AND LEGAL"],[78,"Normal 12-lead ECG. Scan.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Normal_12_lead_EKG.jpg/3840px-Normal_12_lead_EKG.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[79,"Image of a fiery purgatory by Ludovico Carracci. Top: Christ directing, with Mary and interceding saints. Middle: Angel showing a soul the intercessors. Bottom: souls being purged with various attitudes. Painting.","II","https://upload.wikimedia.org/wikipedia/commons/f/fe/Carracci-Purgatory.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","AFTERLIFE ICONOGRAPHY"],[80,"Wie Zuckerplätzchen. Photograph.","II","https://cdn.prod.www.spiegel.de/images/16a0bdc3-0001-0004-0000-000000596968_w1600_r0.9955634427684117_fpx44.97_fpy44.77.webp","REGULATORY AND LEGAL"],[81,"U.S. Food and Drug Administration agents inspect packages for illegal drug shipments at an international mail facility in New York. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/FDA_and_the_International_Mail_Facilities_%28IMFs%29_%2827057043228%29.jpg/500px-FDA_and_the_International_Mail_Facilities_%28IMFs%29_%2827057043228%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[82,"Silent Shock, by Michael Magazanik. Cover.","II","https://i.guim.co.uk/img/media/4b3e433a434f3886bac2154b5ccfe2e40ccff802/0_0_1181_1772/1181.jpg?width=1140&dpr=2&s=none&crop=none","REGULATORY AND LEGAL"],[83,"A patient undergoing an ECG. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/ECGfemaleathlete.jpg/1920px-ECGfemaleathlete.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[84,"Dr. William McBride. Photograph.","II","https://i.guim.co.uk/img/media/a777d19051a4a0d1a6b7f8e2df82070fae17641b/0_0_2361_1417/2361.jpg?width=1900&dpr=2&s=none&crop=none","REGULATORY AND LEGAL"],[85,"DEA agents escort Colombian drug lord Miguel Rodríguez Orejuela after his extradition to the United States in 2005. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/9/96/Miguelrodriguez-extradition.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[86,"Otto Ambros. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/6/60/Otto_Ambros.jpg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=original","REGULATORY AND LEGAL"],[87,"Person wearing a 10-lead Holter monitor. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/9/91/Experiment_Support_Scientist_Matthew_Roper_demonstrating_Holter_Monitor_2_hardware_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[88,"Otto Ambros, chief scientist at Auschwitz rubber camp, Buna. Photograph.","II","https://pbs.twimg.com/media/C-L8MSKUwAAPYdT.jpg","REGULATORY AND LEGAL"],[89,"Two DEA agents in a shoot house exercise. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/a/a1/DEA-Agents.jpeg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[90,"Ambros Otto Einwanderungskarte Brasilien 1952, Photograph.","II","https://thumb.wikimedia.org/wikipedia/commons/thumb/9/93/Ambros_Otto_Einwanderungskarte_Brasilien_1952.jpg/1920px-Ambros_Otto_Einwanderungskarte_Brasilien_1952.jpg?utm_source=de.wikipedia.org&utm_campaign=index&utm_content=thumbnail","REGULATORY AND LEGAL"],[91,"Proper placement of the limb electrodes. The limb electrodes can be far down on the limbs or close to the hips/shoulders as long as they are placed symmetrically. Illustration.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Limb_leads.svg/3840px-Limb_leads.svg.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[92,"Permission for Grünenthal to produce penicillin, dated 23 February 1948. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/f/fa/1948-02-23-Herstellerlaubnis-Penicillin_Grunenthal.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=original","REGULATORY AND LEGAL"],[93,"DEA agents in MultiCam uniform burning hashish seized in Operation Albatross in Afghanistan, 2007. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/b/b0/Burning_hashish_seized_in_Operation_Albatross.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[94,"Thalidomide Effects. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/c/cd/Thalidomide_effects.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=original","REGULATORY AND LEGAL"],[95,"Bare chest of a man for ECG with probes. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/d/dc/Bare_chest_of_a_old_man_for_ECG_with_probes_%2836506%29.jpg/1280px-Bare_chest_of_a_old_man_for_ECG_with_probes_%2836506%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[96,"Factory of IG Farben AG in Monowitz, near Auschwitz (1941). Photograph.","II","https://www.oncozine.com/wp-content/uploads/2020/02/IG-Farben-factory-Monowitz-Auschwitz-1941-300x190.jpg","REGULATORY AND LEGAL"],[97,"\"Operation Somalia Express\" was an 18-month investigation that included the coordinated takedown of a 44-member international narcotics-trafficking organization responsible for smuggling more than 25 tons of khat from the Horn of Africa to the United States. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/6/69/Deakhat.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[98,"Hermann Wirtz Sr., Founder and Executive at Chemie Grünenthal. Photograph.","II","https://www.oncozine.com/wp-content/uploads/2020/02/Hermann-W-266x300.png","REGULATORY AND LEGAL"],[99,"The limb leads and augmented limb leads (Wilson's central terminal is used as the negative pole for the latter in this representation). Illustration.","II","https://upload.wikimedia.org/wikipedia/commons/1/19/Limb_leads_of_EKG.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[100,"The manufacturing process for derivatives of amino-piperidine-2,6-diones at the German Patent Office issued August 11, 1960 under patent number 1,074,584. Photograph.","II","https://www.oncozine.com/wp-content/uploads/2020/02/Screen-Shot-2020-02-05-at-1.06.43-PM-300x147.png","REGULATORY AND LEGAL"],[101,"People protesting medical marijuana raids. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/5/5c/DEA_Raid_protest.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[102,"Pack of Thalidomide Tablets. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Pack_of_Thalidomide_tablets.jpg/1920px-Pack_of_Thalidomide_tablets.jpg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=thumbnail","REGULATORY AND LEGAL"],[103,"Spatial orientation of EKG leads. Illustration.","II","https://upload.wikimedia.org/wikipedia/commons/0/0e/EKG_leads.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[104,"Ksitigarbha Tibetan Xylography. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Ksitigarbha_Tibetan_Xylography.jpg/1920px-Ksitigarbha_Tibetan_Xylography.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[105,"Kevadon (Thalidomide), 1960. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Kevadon_%28thalidomide%29%2C_1960.jpg/500px-Kevadon_%28thalidomide%29%2C_1960.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","REGULATORY AND LEGAL"],[106,"Raymond A. Vonderlehr (medical doctor). Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/9/9c/Vonderle.gif?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[107,"Baby born to a mother who had taken thalidomide while pregnant. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/NCP14053.jpg/500px-NCP14053.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","REGULATORY AND LEGAL"],[108,"An early commercial ECG device (1911). Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/1/1c/Willem_Einthoven_ECG.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[109,"Niko Von Glasow. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/1/16/Niko_von_Glasow.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail_unscaled","REGULATORY AND LEGAL"],[110,"Eugene Dibble. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/b/b8/Eugene_Dibble.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[111,"Nicola Perscheid Carl Duisberg Vor 1930. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/0/07/Nicola_Perscheid_-_Carl_Duisberg_vor_1930.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail_unscaled","REGULATORY AND LEGAL"],[112,"ECG from 1957. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/BASA-532K-1-2-15-Ran_Bosilek.jpg/3840px-BASA-532K-1-2-15-Ran_Bosilek.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","CLINICAL AFFAIRS AND THE PATIENT"],[113,"Share of the I. G. Farbenindustrie AG, issued in December 1925. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/IG_Farben_AG_1925.jpg/500px-IG_Farben_AG_1925.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","REGULATORY AND LEGAL"],[114,"Charlie Pollard, a survivor. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/6/63/Charlie_Pollard.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[115,"The IG Farben supervisory board, commonly known as the \"Council of Gods\", in 1926, painted by Hermann Groeber. Painting.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/IGFarbenGoetterrat.jpg/960px-IGFarbenGoetterrat.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","REGULATORY AND LEGAL"],[116,"A PET scan of the human brain. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/c/c6/PET-image.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[117,"The Last Judgment (detail), c.1431, by Fra Angelico depicting people being tormented in hell. Painting.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Fra_Angelico_010.jpg/1920px-Fra_Angelico_010.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[118,"Zyklon B container in the Auschwitz museum. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Zyklon_B_Container.jpg/500px-Zyklon_B_Container.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","REGULATORY AND LEGAL"],[119,"Herman Shaw, a survivor. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/e/e5/Herman_Shaw.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[120,"Heinrich Himmler (second left) visits the IG Farben Auschwitz plant, July 1942. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Heinrich_Himmler%2C_IG_Farben_Auschwitz_plant%2C_July_1942.jpeg/500px-Heinrich_Himmler%2C_IG_Farben_Auschwitz_plant%2C_July_1942.jpeg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","REGULATORY AND LEGAL"],[121,"A complete body PET–CT fusion image. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/4/40/Viewer_medecine_nucleaire_keosys.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[122,"IG Farben Auschwitz Factory. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Bundesarchiv_Bild_146-2007-0056%2C_IG-Farbenwerke_Auschwitz.jpg/500px-Bundesarchiv_Bild_146-2007-0056%2C_IG-Farbenwerke_Auschwitz.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","REGULATORY AND LEGAL"],[123,"Positron Emission Tomography. Illustration.","II","https://upload.wikimedia.org/wikipedia/commons/e/e6/Positron_emission_tomography.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[124,"The defendants in the dock on the first day of the IG Farben trial, 27 August 1947. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/IG_Farben_Defendants.jpg/960px-IG_Farben_Defendants.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","REGULATORY AND LEGAL"],[125,"A brain PET–MRI fusion image. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/5/57/PET-MR2-Head-Keosys.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[126,"Akshyobhya Mandala Thiksey Monastery. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Akshyobhya_mandala_Thiksey_Monastery.jpg/1280px-Akshyobhya_mandala_Thiksey_Monastery.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[127,"A drug manufacturer inspection by the US Food and Drug Administration. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/e/ef/Inspecting_a_Drug_Manufacturer_%28FDA034%29_%286982162417%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","SALES AND FIELD OPERATIONS"],[128,"ECAT Exact HR PET Scanner. Photograph.","II","https://upload.wikimedia.org/wikipedia/commons/b/b8/ECAT-Exact-HR--PET-Scanner.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","CLINICAL AFFAIRS AND THE PATIENT"],[129,"A meeting of twelve scientists on tropical medicine. Photograph.","II","https://iiif.wellcomecollection.org/image/V0028060/full/2048%2C/0/default.jpg","REGULATORY AND LEGAL"],[130,"OxyContin Advert 05. Photograph.","III","https://alcoholstudies.rutgers.edu/wp-content/uploads/posterr.png","REGULATORY AND LEGAL"],[131,"OxyContin Advert 04. Photograph.","III","https://alcoholstudies.rutgers.edu/wp-content/uploads/oxy-moron-1.jpg","REGULATORY AND LEGAL"],[132,"OxyContin Advert 03. Photograph.","III","https://alcoholstudies.rutgers.edu/wp-content/uploads/oxy-ads.jpg","REGULATORY AND LEGAL"],[133,"OxyContin Advert 01. Photograph.","III","https://www.washingtonpost.com/graphics/2018/national/amp-stories/oxycontin-how-misleading-marketing-got-america-addicted/img/adpageone.jpg","REGULATORY AND LEGAL"],[134,"OxyContin Advert 02. Photograph.","III","https://www.washingtonpost.com/graphics/2018/national/amp-stories/oxycontin-how-misleading-marketing-got-america-addicted/img/adpagetwo.jpg","REGULATORY AND LEGAL"],[135,"OxyContin. Photograph.","III","https://d3i6fh83elv35t.cloudfront.net/static/2018/05/RTX4VJ0F-1024x768.jpg","REGULATORY AND LEGAL"],[136,"Heaven's Gate Logo. Graphic.","III","https://upload.wikimedia.org/wikipedia/en/3/38/Heavensgatelogo.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[137,"Scene taken by the San Diego Sheriff's Department 05. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Heaven%27s_Gate_member_lays_on_a_bed_in_Rancho_Santa_Fe.png/500px-Heaven%27s_Gate_member_lays_on_a_bed_in_Rancho_Santa_Fe.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","COMMUNITY RELATIONS"],[138,"Heaven's Gate Recruitment Flyer. Poster.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/Heaven%27s_Gate_Recruitment_Flyer.jpg/1280px-Heaven%27s_Gate_Recruitment_Flyer.jpg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=thumbnail","COMMUNITY RELATIONS"],[139,"Scene taken by the San Diego Sheriff's Department 02. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Heaven%27s_Gate_members_on_bunk_beds_inside_Rancho_Santa_Fe.png/250px-Heaven%27s_Gate_members_on_bunk_beds_inside_Rancho_Santa_Fe.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","COMMUNITY RELATIONS"],[140,"Scene taken by the San Diego Sheriff's Department 04. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Heaven%27s_Gate_members_following_the_mass_suicide_in_Rancho_Santa_Fe.png/330px-Heaven%27s_Gate_members_following_the_mass_suicide_in_Rancho_Santa_Fe.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","COMMUNITY RELATIONS"],[141,"Scene taken by the San Diego Sheriff's Department 03. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Heaven%27s_Gate_member_lays_in_a_room_in_Rancho_Santa_Fe.png/330px-Heaven%27s_Gate_member_lays_in_a_room_in_Rancho_Santa_Fe.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","COMMUNITY RELATIONS"],[142,"Scene taken by the San Diego Sheriff's Department 01. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Heaven%27s_Gate_member_lays_in_a_bedroom_in_Rancho_Santa_Fe.png/250px-Heaven%27s_Gate_member_lays_in_a_bedroom_in_Rancho_Santa_Fe.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","COMMUNITY RELATIONS"],[143,"Marshall Applewhite. Photograph.","III","https://upload.wikimedia.org/wikipedia/en/d/df/Marshall_Applewhite.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[144,"A depiction of a scene from the Book of Revelation, which Applewhite believed described interactions between humans and extraterrestrials. Painting.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Ottheinrich_Folio289r_Rev6B.jpg/500px-Ottheinrich_Folio289r_Rev6B.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","COMMUNITY RELATIONS"],[145,"Bonnie Nettles. Photograph.","III","https://upload.wikimedia.org/wikipedia/en/9/94/Bonnie_Nettles.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[146,"Comet Hale Bopp. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Comet_Hale-Bopp_1995O1.jpg/960px-Comet_Hale-Bopp_1995O1.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","COMMUNITY RELATIONS"],[147,"Believers of Unification Church which was named after the founder Moon Sun Myung, attend the mass wedding. Photograph.","III","https://media.cnn.com/api/v1/images/stellar/prod/180604173435-wild-wild-country-cult-uniforms.jpg?q=w_4700,h_3133,x_0,y_0,c_fill/w_1093/f_webp","COMMUNITY RELATIONS"],[148,"Higher Source 1997 01. Graphic.","III","https://www.webdesignmuseum.org/uploaded/fullscreen/higher-source-1997.png","COMMUNITY RELATIONS"],[149,"Higher Source 1997 02. Graphic","III","https://www.webdesignmuseum.org/uploaded/fullscreen-others/higher-source-1997-02.png","COMMUNITY RELATIONS"],[150,"Higher Source 1997 03. Graphic.","III","https://www.webdesignmuseum.org/uploaded/fullscreen-others/higher-source-1997-03.png","COMMUNITY RELATIONS"],[151,"Higher Source 1997 04. Graphic.","III","https://www.webdesignmuseum.org/uploaded/fullscreen-others/higher-source-1997-04.png","COMMUNITY RELATIONS"],[152,"The Heaven's Gate Cult Unknown To Most Americans Except For Its Web Presence Until 1997. Site.","III","https://www.researchgate.net/profile/Paul-Starrs/publication/227754431/figure/fig3/AS:389119025926145@1469784614718/The-Heavens-Gate-cult-unknown-to-most-Americans-except-for-its-Web-presence-until-1997.png","COMMUNITY RELATIONS"],[153,"Marshall Applewhite And Bonnie Nettles 1974 Heavens Gate. Photograph.","III","https://cdn.britannica.com/96/286096-050-C9049AD9/Marshall-Applewhite-and-Bonnie-Nettles-1974-Heavens-Gate.jpg?w=300","COMMUNITY RELATIONS"],[154,"Heavens Gate Computers Laptop. Photograph.","III","https://cdn.britannica.com/02/286202-050-3D2F20EA/Heavens-Gate-computers-laptop.jpg?w=300","COMMUNITY RELATIONS"],[155,"Heavens Gate Suitcase Duffel Bag. Photograph.","III","https://cdn.britannica.com/01/286201-050-B30990CC/Heavens-Gate-suitcase-duffel-bag.jpg?w=300","COMMUNITY RELATIONS"],[156,"The entrance to Jonestown, 1978. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Jonestown_entrance.jpg/1920px-Jonestown_entrance.jpg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=thumbnail","COMMUNITY RELATIONS"],[157,"The logo of The Peoples Temple, led by Jim Jones, which controlled the commune until late 1978. Graphic.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Peoples_Temple_logo.svg/500px-Peoples_Temple_logo.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","COMMUNITY RELATIONS"],[158,"Jim Jones, founder of The Peoples Temple. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Rev._Jim_Jones%2C_1977_%28cropped%292.jpg/500px-Rev._Jim_Jones%2C_1977_%28cropped%292.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","COMMUNITY RELATIONS"],[159,"Jonestown Cottages. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Jonestown_cottages_2.jpg/3840px-Jonestown_cottages_2.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[160,"Jonestown Houses. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/4/4e/Jonestown_Houses.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[161,"Congressman Leo Ryan. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Leo_Ryan.jpg/1920px-Leo_Ryan.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[162,"DHC-6 Twin Otter before attack. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Jonestown_Guyana_Airways_plane_1.jpg/3840px-Jonestown_Guyana_Airways_plane_1.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[163,"Jonestown, Guyana Bodies. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/1/16/Jonestown%2C_Guyana_bodies.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[164,"Flavor Aid packets recovered from Jonestown after the murder-suicides, on display at Graveface Museum in Savannah, Georgia. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/FlavorAidPackets.jpg/1920px-FlavorAidPackets.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[165,"Jonestown Memorial Service Pictures. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/1/1f/Jonestown_Memorial_Service_Pictures.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[166,"Jim Jones's first church in Indianapolis, Indiana. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/a/af/Jimjonesfirstchurch.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[167,"Peoples Temple headquarters, 1859 Geary Blvd., San Francisco, 1978. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/c/c6/Peoples_Temple.jpg/1920px-Peoples_Temple.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[168,"Members Of Peoples Temple Attend An Anti Eviction Rally At The International Hotel, San Francisco January 1977. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/d/d1/Members_of_Peoples_Temple_attend_an_anti-eviction_rally_at_the_International_Hotel%2C_San_Francisco_-_January_1977.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[169,"Rev. Jim Jones receives a Martin Luther King, Jr. Humanitarian award at Glide Memorial Church in San Francisco, January 1977. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Jim_Jones%2C_1977.jpg/1280px-Jim_Jones%2C_1977.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[170,"Peoples Temple members included the elderly as well as youth. Hazel Dashiell, with Mark Fields at an anti-eviction rally in San Francisco's Chinatown, 1977. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/7/71/TEMPLE-10.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[171,"Jim Jones shakes hands with Cecil Williams January 1977. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/f/f6/Jim_Jones_shakes_hands_with_Cecil_Williams_-_January_1977_%28cropped1%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[172,"Father Divine, 1938. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/a/aa/Father_Divine%2C_1938_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[173,"Jones and Williams at an anti-eviction protest at the International Hotel in San Francisco in January 1977. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/6/6f/JIMJONES1977.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[174,"Chaeoke Jones, Lew Jones, and Terry Carter Jones; all died in the mass murder-suicide at Jonestown. Photograph.","III","https://upload.wikimedia.org/wikipedia/en/4/43/Jonestown-brochure-16_LewJones_TerryCarter-Chaeoke.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[175,"Scientology Logo. Graphic.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Scientology_Logo.svg/1920px-Scientology_Logo.svg.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[176,"L. Ron Hubbard in 1950, around when he developed Scientology. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/L._Ron_Hubbard_in_1950_-_Restoration.jpg/1920px-L._Ron_Hubbard_in_1950_-_Restoration.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[177,"Two Complete Science Adventure Books Winter 1950. Cover.","III","https://upload.wikimedia.org/wikipedia/commons/b/b0/Two_Complete_Science-Adventure_Books_Winter_1950.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[178,"Hubbard conducting a Dianetics seminar in Los Angeles in 1950. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/L._Ron_Hubbard_conducting_Dianetics_seminar_in_Los_Angeles_in_1950.jpg/1920px-L._Ron_Hubbard_conducting_Dianetics_seminar_in_Los_Angeles_in_1950.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[179,"The Scientology cross came into use in 1969. Given Hubbard's private affinity for Crowley and antipathy to Christianity; it has been suggested that the cross may have been inspired by Crowley's Rose Cross or might be a \"crossed-out cross\" (an anti-Christian symbol). Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/0/0e/Scientology_croce.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[180,"On July 8, 1977, after uncovering Operation Snow White, the FBI raided the Founding Church of Scientology in D.C. and seized thousands of documents revealing the scope of the Church's espionage operations. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/e/e7/2125_S_Street_NW.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[181,"Aerial photography showing Scientology Trementina facility with distinctive logo . Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/f/fe/Scientology-Trementina-rotated-and-cropped.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[182,"Aerial photograph of a ranch in Creston, San Luis Obispo County, California, where Scientology founder L. Ron Hubbard spent his last days. A Scientology-related symbol is visible within a racetrack. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/1/16/Church_of_Spiritual_Technology_ranch_Creston.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[183,"The \"Swastika of David\" is a combination of different symbols; the Magen David with the horizontal bars interrupted by an S-shaped swastika. Graphic.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Raelian_symbol.svg/500px-Raelian_symbol.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail","COMMUNITY RELATIONS"],[184,"A medallion displaying the Raëlian symbol; practitioners typically wear these medallions to identify their beliefs. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Pendentif_ra%C3%A9lien.jpg/1920px-Pendentif_ra%C3%A9lien.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[185,"A public gathering of Raëlists in 2006 in the Insa-dong neighbourhood of Seoul, South Korea, protesting their government's 2003 ban on Raël entering the country. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/1/11/A_gathering_of_Ra%C3%ABlians_in_South_Korea.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[186,"A small-scale tent copy of the proposed Elohim embassy erected at a Raëlian seminar in Colombia. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/e/e6/Tent_version_of_Embassy_for_Extraterrestrial_Elohim_for_Ra%C3%ABlian_seminar_in_Columbia%2C_South_America.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[187,"A woman on a bed adorned with the Raëlian symbol. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/2/2f/Lady_on_bed_adorned_with_Ra%C3%ABlian_symbol.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[188,"A Raëlist contingent on the street at the \"Korea Queer Culture Festival\" held in Seoul in 2014. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/5/5d/Korea_Queer_Culture_Festival_2014_57.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[189,"The \"Wormhole of David\", used from 1990 onwards, is a hexagram with the inner hexagon replaced with six spiral arcs to the center. Graphic.","III","https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Raelian_symbol_alternate.svg/1920px-Raelian_symbol_alternate.svg.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","COMMUNITY RELATIONS"],[190,"Raëlians drawing with sand. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/e/e6/Ra%C3%ABlians_drawing_with_sand.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[191,"Two Raëlians visiting UFOLand, the Quebec museum which the Raëlians established in 1997. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/1/12/Ra%C3%ABlians_at_UFOland.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[192,"Brigitte Boisselier (left) took on a senior role in the Raëlian Movement. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/4/4f/Brigitte_Boisselier.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[193,"Raëlian women at the \"Korea Love Hug\" festival in Seoul, South Korea. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/b/bb/Ra%C3%ABlian_Women_at_the_Seoul%2C_Korea_Love_Hug_Festival.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[194,"Raëlians protesting the South Korean government's 2003 ban on Raël entering the country. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/6/62/Ra%C3%ABlians_asking_to_stop_the_prohibition_of_Ra%C3%ABl%27s_entry_into_Korea.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[195,"A Raëlian lecturing on his religion at Onyang High School in South Korea. Photograph.","III","https://upload.wikimedia.org/wikipedia/commons/4/47/Ra%C3%ABlian_lecture_at_Onyang_High_School%2C_South_Korea.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","COMMUNITY RELATIONS"],[196,"A self-pressurising dewar (silver) being filled with liquid nitrogen from a larger storage tank (white). Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Liquid_Nitrogen_Tank.JPG/1280px-Liquid_Nitrogen_Tank.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","DISPOSAL AND STORAGE"],[197,"James Dewar. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/a/ad/James_Dewar.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","DISPOSAL AND STORAGE"],[198,"James Dewar in the Royal Institution in London, around 1900. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/c/c5/Heike_Kamerlingh_Onnes_-_33_-_James_Dewar_in_the_Royal_Institution_in_London%2C_around_1900.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","DISPOSAL AND STORAGE"],[199,"Technicians preparing a body for cryopreservation in 1985. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/7/76/Cryo_surgery.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","DISPOSAL AND STORAGE"],[200,"Cryopreservation USDA Gene Bank. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/9/95/Cryopreservation_USDA_Gene_Bank.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","DISPOSAL AND STORAGE"],[201,"A tank of liquid nitrogen, used to supply a cryogenic freezer (for storing laboratory samples at a temperature of about −150 °C or −238 °F). Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Liquid_nitrogen_tank.JPG/960px-Liquid_nitrogen_tank.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","DISPOSAL AND STORAGE"],[202,"Kriorus cryostorage. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/0/03/Kriorus_Inside%2C_Cryostorage.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","DISPOSAL AND STORAGE"],[203,"A body being prepared for cryonic preservation in an Alcor Life Extension Foundation operating room in Scottsdale, Arizona. Photograph.","IV","https://cdn.britannica.com/37/247537-050-F3150512/Cryonics-operating-room-Alcor-Life-Extension-Foundation.jpg","DISPOSAL AND STORAGE"],[204,"A chamber filled with liquid nitrogen in which individuals are preserved at the Alcor Life Extension Foundation in Scottsdale, Arizona. Photograph.","IV","https://cdn.britannica.com/38/247538-050-26C53D25/Neuropatient-neuropod-liquid-nitorgen-Alcor-cryonics.jpg","DISPOSAL AND STORAGE"],[205,"Transhumanism H+ symbol. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Transhumanism_h%2B.svg/1920px-Transhumanism_h%2B.svg.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","DISPOSAL AND STORAGE"],[206,"Kevin Warrick is considered by many to be the world's first cyborg. He formed a symbiotic connection with a robotic hand by linking his nervous system to a computer and controlling the hand with his brain signals. Scroll through the gallery to see more of David Vintiner's images of so-called \"transhumanists.\" David Vintiner. Photograph.","IV","https://media.cnn.com/api/v1/images/stellar/prod/200526143513-06-david-vintiner-transhumanism.jpg?q=w_2000,h_2545,x_0,y_0,c_fill/w_1316/f_webp","DISPOSAL AND STORAGE"],[207,"Liz Parrish claims to be the first person to successfully undergo dual gene therapy to \"treat\" biological aging. David Vintiner. Photograph.","IV","https://media.cnn.com/api/v1/images/stellar/prod/200526142617-09-david-vintiner-transhumanism.jpg?q=w_2000,h_2545,x_0,y_0,c_fill/w_1316/f_webp","DISPOSAL AND STORAGE"],[208,"Describing himself as an \"eyeborg,\" Rob Spence installed a wireless video camera in place of his right eye. David Vintiner. Photograph.","IV","https://media.cnn.com/api/v1/images/stellar/prod/200526143932-13-david-vintiner-transhumanism.jpg?q=w_2000,h_2545,x_0,y_0,c_fill/w_1316/f_webp","DISPOSAL AND STORAGE"],[209,"A Navajo medicine man. Photograph by Edward S. Curtis, 1904.","IV","https://iiif.wellcomecollection.org/image/L0014328/full/2048%2C/0/default.jpg","PRECLINICAL"],[210,"Neil Harbisson was born with achromatism, or total colorblindness. In 2004, he had an antenna implanted into his skull that allows him to perceive colors as audible vibrations. David Vintiner. Photograph.","IV","https://media.cnn.com/api/v1/images/stellar/prod/200526142438-12-david-vintiner-transhumanism.jpg?q=w_2000,h_2545,x_0,y_0,c_fill/w_1316/f_webp","DISPOSAL AND STORAGE"],[211,"Moon Ribas is a cyborg dancer who has implants connected to online seismographs in her feet. She has the ability to \"sense\" earthquakes taking place anywhere on the planet, she claims, as they cause vibrations to course through her body. David Vintiner. Photograph.","IV","https://media.cnn.com/api/v1/images/stellar/prod/200526144800-10-david-vintiner-transhumanism.jpg?q=w_2000,h_1572,x_0,y_0,c_fill/w_1316/f_webp","DISPOSAL AND STORAGE"],[212,"James Young's arm is controlled by sensors that detect the minute muscle movements in his spine. David Vintiner. Photograph.","IV","https://media.cnn.com/api/v1/images/stellar/prod/200526144025-04-david-vintiner-transhumanism.jpg?q=w_2000,h_2545,x_0,y_0,c_fill/w_1316/f_webp","DISPOSAL AND STORAGE"],[213,"Beauty is in the engineered products. David Vintiner. Photograph.","IV","https://media.cnn.com/api/v1/images/stellar/prod/200526143320-02-david-vintiner-transhumanism.jpg?q=w_2000,h_1572,x_0,y_0,c_fill/w_1316/f_webp","DISPOSAL AND STORAGE"],[214,"A Zulu medicine man or shaman. Halftone.","IV","https://iiif.wellcomecollection.org/image/V0015951/full/2048%2C/0/default.jpg","PRECLINICAL"],[215,"Andrew Vladimirov, doctor of neuroscience, London. Brain hacker Vladimirov collects and analyses his brain’s data. Photograph.","IV","https://www.1854.photography/wp-content/uploads/2021/06/David-Vintiner-Gem-Fletcher-Transhumanism-3-scaled.jpeg","DISPOSAL AND STORAGE"],[216,"Neurobotics, Moscow. Neurobotics manufactures made-to-order anthropomorphic robots copying the appearance of a real person, in this instance, Aleksandr Pushkin, the Russian poet and novelist. Photograph.","IV","https://www.1854.photography/wp-content/uploads/2021/06/David-Vintiner-Gem-Fletcher-Transhumanism-10.jpeg","DISPOSAL AND STORAGE"],[217,"North Sense, London. Created by Liviu Babitz and Scott Cohen, North Sense is a small, matchbox-sized artificial sense organ that delivers a short vibration every time the user faces north. Photograph.","IV","https://www.1854.photography/wp-content/uploads/2021/06/David-Vintiner-Gem-Fletcher-Transhumanism-6-scaled.jpeg","DISPOSAL AND STORAGE"],[218,"Peter Thiel. Photograph.","IV","https://assets.bwbx.io/images/users/iqjWHBFdfxIU/i6T5rz9MlKSc/v1/-1x-1.webp","DISPOSAL AND STORAGE"],[219,"Tibetan medicine and its divine origins. Distemper painting by Chundu, 1970.","IV","https://iiif.wellcomecollection.org/image/b14655585_V0018304-LS-TO.jp2/full/2048%2C/0/default.jpg","PRECLINICAL"],[220,"Colorised photograph of Iranian-American futurist FM-2030 (formerly F.M. Esfandiary). Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/5/53/FM2030.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","DISPOSAL AND STORAGE"],[221,"Richard Clair Jones. Photograph.","IV","https://upload.wikimedia.org/wikipedia/en/c/c3/Richard_Clair_Jones.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","DISPOSAL AND STORAGE"],[222,"Tuff Shed from Frozen Dead Guy Days. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/8/8e/FDGD_Tuff_Shed.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","DISPOSAL AND STORAGE"],[223,"Signage alteration at Frozen Dead Guy Days. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/FDGD_signage_alteration.jpg/1280px-FDGD_signage_alteration.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","DISPOSAL AND STORAGE"],[224,"Angels making up and dispensing a medicine. Wood inlay attributed to Luigi Gargiulo.","IV","https://iiif.wellcomecollection.org/image/L0011345/full/2048%2C/0/default.jpg","PRECLINICAL"],[225,"Robert Ettinger. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/d/d9/Robert_Ettinger_Soldier_WWII.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","DISPOSAL AND STORAGE"],[226,"Eliezer Yudkowsky, Stanford 2006. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/3/35/Eliezer_Yudkowsky%2C_Stanford_2006_%28square_crop%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","DISPOSAL AND STORAGE"],[227,"David Pearce (Transhumanist), September 2013. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/David_Pearce_%28transhumanist%29%2C_September_2013.jpg/1920px-David_Pearce_%28transhumanist%29%2C_September_2013.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","DISPOSAL AND STORAGE"],[228,"Luke Nosek. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Luke_Nosek_%288518034389%29_%28cropped%29.jpg/1920px-Luke_Nosek_%288518034389%29_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","DISPOSAL AND STORAGE"],[229,"The columbarium of Högalid Evangelical-Lutheran Church in Stockholm. Photograph.","IV","https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/H%C3%B6galidskyrkan%2C_Stockholm_-_Kolumbarium_2.jpg/3840px-H%C3%B6galidskyrkan%2C_Stockholm_-_Kolumbarium_2.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","DISPOSAL AND STORAGE"],[230,"Illustration from the Jade Record: Tortures being meted out in the Sixth Court of Hell. Illustration.","V","https://upload.wikimedia.org/wikipedia/commons/c/cb/Jade_Record_1.PNG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","AFTERLIFE ICONOGRAPHY"],[231,"Dead of the underworld depicted in a Qing dynasty Shuilu ritual painting. Painting.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Ghostly_Realm_from_the_Water-Land_Ritual.jpg/960px-Ghostly_Realm_from_the_Water-Land_Ritual.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[232,"Depiction of the punishments of Diyu at the Hell Museum, Bao Gong Temple, Singapore. Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Ten_Courts_of_Hell_Display_at_Bao_Gong_Temple%2C_Singapore..jpg/3840px-Ten_Courts_of_Hell_Display_at_Bao_Gong_Temple%2C_Singapore..jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[233,"Entrance to the \"Ten Courts of Hell\" attraction in Haw Par Villa, Singapore. The Ox-Headed (right) and Horse-Faced (left) Hell Guards stand guard at the entrance. Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/9/9d/Haw_Par_Villa_7%2C_Dec_14.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","AFTERLIFE ICONOGRAPHY"],[234,"Preserved colonial wall paintings of 1802 depicting Hell, by Tadeo Escalante, inside the Church of San Juan Bautista in Huaro, Peru. Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Fresque_%C3%A9glise_huaro.JPG/3840px-Fresque_%C3%A9glise_huaro.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[235,"Ancient Sumerian cylinder seal impression showing the god Dumuzid being tortured in the Underworld by galla demons. Sculpture.","V","https://upload.wikimedia.org/wikipedia/commons/f/f5/Dumuzi_aux_enfers.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","AFTERLIFE ICONOGRAPHY"],[236,"Dante and Virgil in Hell by William-Adolphe Bouguereau, 1850. Painting.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/William_Bouguereau_-_Dante_and_Virgile_-_Google_Art_Project_2.jpg/1920px-William_Bouguereau_-_Dante_and_Virgile_-_Google_Art_Project_2.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[237,"A depiction of Idris visiting Heaven and Hell from a Persian illuminated manuscript version of the Islamic text Stories of the Prophets (1577). Manuscript.","V","https://upload.wikimedia.org/wikipedia/commons/e/e2/Idris_the_prophet.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=original","AFTERLIFE ICONOGRAPHY"],[238,"The twelve nidānas in Buddhist artwork. Painting.","V","https://upload.wikimedia.org/wikipedia/commons/4/40/Traditional_bhavachakra_wall_mural_of_Yama_holding_the_wheel_of_life%2C_Buddha_pointing_the_way_out.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","AFTERLIFE ICONOGRAPHY"],[239,"Georgin François, The 3 Roads to Eternity, 1825. Painting.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Georgin_Fran%C3%A7ois%2C_The_3_Roads_to_Eternity%2C_1825_Cornell_CUL_PJM_1040_01.jpg/3840px-Georgin_Fran%C3%A7ois%2C_The_3_Roads_to_Eternity%2C_1825_Cornell_CUL_PJM_1040_01.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[240,"A Kashmiri depiction of Jannah, 1808. Manuscript.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/Paris%2C_BnF%2C_Suppl%C3%A9ment_Persan_1030_fol._35v_Muhammad_visits_Paradise.jpg/1280px-Paris%2C_BnF%2C_Suppl%C3%A9ment_Persan_1030_fol._35v_Muhammad_visits_Paradise.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[241,"Emblem of the Papacy: Triple Tiara and Keys. Graphic.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/Emblem_of_the_Papacy_SE.svg/1280px-Emblem_of_the_Papacy_SE.svg.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[242,"Image of a non-fiery purgatory (Gustave Doré: illustration for Dante's Purgatorio, Canto 24 in Divine Comedy). Right: Dante and companions observe. Middle: willing souls gather round a sweet-smelling tree with fruit they cannot eat, to be purged of residual gluttony. Illustration.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Purgatorio_Canto_24_%28148975239%29.jpg/1920px-Purgatorio_Canto_24_%28148975239%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[243,"Altar in Iglesia de la Concepción, Santa Cruz de Tenerife. Top: Trinity; Mid-top: Mary, John the Baptist, Holy family; Mid: archangel Michael; Lower: Saints interceding; Bottom: souls undergoing fiery purgation, still with worldly attachments (shackles) and venial sins (snakes). Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Concepcion_Santa_Cruz_09.jpg/1280px-Concepcion_Santa_Cruz_09.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[244,"A fiery purgatory in the Très riches heures du Duc de Berry. The faithful dead (bottom left) go through the furnace and once purified (top right) ascend towards Heaven. Some of the faithful are plucked by angels, the result of intercessory prayers. The icy water is a common pairing. Painting.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Folio_113v_-_Purgatory.jpg/1280px-Folio_113v_-_Purgatory.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[245,"Our Lady of Mount Carmel and purgatory, North End, Boston. Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/LadyOfMtCarmelWithSufferingSouls.jpg/1920px-LadyOfMtCarmelWithSufferingSouls.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[246,"Our Lady of Passau in St Felix Church, Kientzheim, Alsace. Painting.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Kientzheim_StFelix_30.JPG/1280px-Kientzheim_StFelix_30.JPG?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[247,"Altar predella in the town church of Bad Wimpfen, Baden-Württemberg. Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/c/c6/Wimpfen-stadtkirche-predell.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","AFTERLIFE ICONOGRAPHY"],[248,"Miniature by Stefan Lochner showing souls in purgatory. Illustration.","V","https://upload.wikimedia.org/wikipedia/commons/2/27/Stephan_Lochner_Souls_in_Purgatory.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","AFTERLIFE ICONOGRAPHY"],[249,"Murals at Phensong Monastery. Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/Murals_at_Phensong_Monastery.jpg/3840px-Murals_at_Phensong_Monastery.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[250,"Murals at Lippa Monastery. Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/4/49/Murals_at_Lippa_Monastery.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","AFTERLIFE ICONOGRAPHY"],[251,"Lachung Monastery Murals Rinpoche. Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Lachung_Monastery_Murals_Rinpoche.jpg/3840px-Lachung_Monastery_Murals_Rinpoche.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[252,"Hemis Mahasiddhas. Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Hemis_Mahasiddhas_10.jpg/3840px-Hemis_Mahasiddhas_10.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[253,"Goryeo Kshitigarbha (Chijang). Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/Goryeo-Kshitigarbha_%28Chijang%29-late.14c.jpg/960px-Goryeo-Kshitigarbha_%28Chijang%29-late.14c.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[254,"འཇིག་རྟེན་མཆོད་བསྟོད་སྒྲུབ་པ་རྩ་བའི་རྒྱུད་ཅེས་བྱ་བ།. Text.","V","https://upload.wikimedia.org/wikipedia/commons/0/06/%E0%BD%A0%E0%BD%87%E0%BD%B2%E0%BD%82%E0%BC%8B%E0%BD%A2%E0%BE%9F%E0%BD%BA%E0%BD%93%E0%BC%8B%E0%BD%98%E0%BD%86%E0%BD%BC%E0%BD%91%E0%BC%8B%E0%BD%96%E0%BD%A6%E0%BE%9F%E0%BD%BC%E0%BD%91%E0%BC%8B%E0%BD%A6%E0%BE%92%E0%BE%B2%E0%BD%B4%E0%BD%96%E0%BC%8B%E0%BD%94%E0%BC%8B%E0%BD%A2%E0%BE%A9%E0%BC%8B%E0%BD%96%E0%BD%A0%E0%BD%B2%E0%BC%8B%E0%BD%A2%E0%BE%92%E0%BE%B1%E0%BD%B4%E0%BD%91%E0%BC%8B%E0%BD%85%E0%BD%BA%E0%BD%A6%E0%BC%8B%E0%BD%96%E0%BE%B1%E0%BC%8B%E0%BD%96%E0%BC%8D.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","AFTERLIFE ICONOGRAPHY"],[255,"Jizo Rokuharamitsuji (Unkei Attrib). Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Jizo_Rokuharamitsuji_%28Unkei_attrib%29.jpg/1920px-Jizo_Rokuharamitsuji_%28Unkei_attrib%29.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail","AFTERLIFE ICONOGRAPHY"],[256,"ĐịA TạNg Bồ TáT BảN NguyệN Kinh. Photograph.","V","https://upload.wikimedia.org/wikipedia/commons/3/3f/%C4%90%E1%BB%8Ba_t%E1%BA%A1ng_B%E1%BB%93_T%C3%A1t_b%E1%BA%A3n_nguy%E1%BB%87n_kinh.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled","AFTERLIFE ICONOGRAPHY"]];
+function thumb(url, px) {
+  px = px || 480;
+  if (url.indexOf('upload.wikimedia.org') > -1) {
+    if (url.indexOf('/thumb/') > -1) return url.replace(/\/\d+px-/, '/' + px + 'px-');
+    var m = url.match(/^(https:\/\/upload\.wikimedia\.org\/wikipedia\/[^\/]+)\/([0-9a-f])\/([0-9a-f]{2})\/([^?]+)/);
+    if (m) return m[1] + '/thumb/' + m[2] + '/' + m[3] + '/' + m[4] + '/' + px + 'px-' + m[4];
+  }
+  if (url.indexOf('iiif.wellcomecollection.org') > -1)
+    return url.replace(/\/full\/[^\/]+\//, '/full/' + px + '%2C/');
+  return url;
+}
+
+var ORDER=['PLACES','GUIDES','SYMBOLS','RITUALS'];
+var AX=[
+ /(hospital|clinic|facility|building|complex|ruin|site|monastery|church|temple|museum|laboratory|lab\b|plant|camp|prison|ward|room|bank|storage|tank|chamber|hall|cemeter|columbarium|shrine|altar|festival|centre|center|institut|university|school|street|city|village|harbin|auschwitz|buchenwald|stockholm|tenerife|boston|seoul|sing)/g,
+ /(doctor|physician|nurse|scientist|chief|commander|professor|dr\.|founder|ceo|agent|medicine man|shaman|machi|vendor|healer|prophet|priest|bodhisattva|saint|angel|lady of|virgil|dante|holmes|ishii|ambros|thiel|ettinger|parrish|harbisson|warrick|nosek|yudkowsky|pearce|ribas|spence|mcbride|magazanik|boisselier|rael|jones|dewar|vintiner|vladimirov|bumm|parnell|ronnefeldt|kidd|curtis|technician|staff|subject|patient)/g,
+ /(logo|emblem|symbol|advert|advertisement|poster|cover|sign|signage|diagram|chart|illustration|painting|mural|icon|mandala|xylograph|manuscript|seal|crest|tiara|wordmark|brand|packaging|label|print|engraving|woodcut|depiction|image of|iconograph|record|scan|letter|memo|report|catalog)/g,
+ /(inject|injection|dose|dosing|administ|procedure|operat|surgery|vivisect|experiment|study|trial|test|autopsy|draw|venipuncture|preserv|cryo|freez|embalm|burial|funeral|ceremon|ritual|prayer|worship|meditat|lecture|protest|inspect|extradit|demolition|treatment|therapy|research|patch|applied|distributing|dispensing|collection of blood)/g];
+var BASE={I:[0,2,0,1],II:[1,0,0,2],III:[1,1,0,1],IV:[2,0,0,1],V:[1,0,3,0]};
+function score(title,ch){
+  var t=title.toLowerCase(), b=BASE[ch]||[0,0,0,0];
+  var s=AX.map(function(re,k){var h=(t.match(re)||[]).length;return Math.min(3,b[k]+Math.min(2,h));});
+  if(s[0]+s[1]+s[2]+s[3]===0) s[2]=1;
+  return s;
+}
+/* A regular tetrahedron seen edge-on, so the front view repeats the sketch:
+   Places north, Guides west, Symbols east, Rituals south. */
+var K=Math.SQRT1_2;
+var VERT=[[0,-1,K],[-1,0,-K],[1,0,-K],[0,1,K]];
+var SR=1.55, SHELL=3.25, TW=0.26;   // sphere radius, outer shell, tile width (world units)
+function sub(a,b){return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function len(a){return Math.hypot(a[0],a[1],a[2]);}
+function nrm(a){var l=len(a)||1;return [a[0]/l,a[1]/l,a[2]/l];}
+function hash(n,k){var x=Math.sin(n*127.1+k*311.7)*43758.5453;return x-Math.floor(x);}
+
+/* Plates live on sphere skins, facing out, like the first draft.
+   Each skin is sampled densely; every sample gets the Venn address of the
+   spot it sits on (inside which of the other spheres). A plate is only
+   allowed on the skin of its strongest set, at a sample whose address
+   matches its own, so its position is a true Venn address. Plates in no
+   set go on a far shell. Samples too close to a placed plate are retired,
+   so nothing overlaps. */
+function fib(n,c,R,out,dom){
+  for(var i=0;i<n;i++){
+    var y=1-(i+.5)/n*2, r=Math.sqrt(1-y*y), t=i*2.399963229728653;
+    var nn=[Math.cos(t)*r,y,Math.sin(t)*r], x=[c[0]+nn[0]*R,c[1]+nn[1]*R,c[2]+nn[2]*R];
+    var key='', clear=true;
+    for(var k=0;k<4;k++){
+      if(k===dom){ key+='1'; continue; }
+      var dd=len(sub(x,VERT[k]));
+      if(Math.abs(dd-SR)<.05) clear=false;          // skip seams, keep addresses unambiguous
+      key+= dd<SR ? '1' : '0';
+    }
+    if(clear) out.push({x:x,n:nn,key:key,dom:dom,live:true});
+  }
+}
+function place(plates){
+  var C=[];
+  for(var d=0;d<4;d++) fib(5000,VERT[d],SR,C,d);
+  fib(3000,[0,0,0],SHELL,C,-1);
+  C.forEach(function(c){ if(c.dom===-1) c.key='0000'; });
+  var P=plates.map(function(p,i){
+    var s=score(p[1],p[2]), mem=s.map(function(v){return v>=2;});
+    var dom=0; for(var k=1;k<4;k++) if(s[k]>s[dom]) dom=k;
+    var none=!mem.some(Boolean);
+    return {i:i,p:p,s:s,mem:mem,dom:none?-1:dom,none:none,key:mem.map(Number).join('')};
+  });
+  // tightest regions first so they get room
+  var cnt={}; C.forEach(function(c){ var k=c.dom+c.key; cnt[k]=(cnt[k]||0)+1; });
+  var order=P.slice().sort(function(a,b){ return (cnt[a.dom+a.key]||0)-(cnt[b.dom+b.key]||0) || a.i-b.i; });
+  var TH=TW*1.12;
+  order.forEach(function(q){
+    var pref=nrm([hash(q.p[0],1)-.5,hash(q.p[0],2)-.5,hash(q.p[0],3)-.5]);
+    var best=null, bs=-9, any=null, as=-9;
+    C.forEach(function(c){
+      if(c.dom!==q.dom||c.key!==q.key) return;
+      var sc=c.n[0]*pref[0]+c.n[1]*pref[1]+c.n[2]*pref[2];
+      if(c.live&&sc>bs){bs=sc;best=c;}
+      if(sc>as){as=sc;any=c;}
+    });
+    var pick=best||any;                     // region full: allow a touch of overlap rather than lie
+    q.pos=pick.x.slice(); q.n=pick.n.slice(); q.c=q.none?[0,0,0]:VERT[q.dom]; q.R=q.none?SHELL:SR;
+    q.crowded=!best;
+    C.forEach(function(c){ if(c.live&&len(sub(c.x,q.pos))<TH) c.live=false; });
+  });
+  P.forEach(function(q){
+    q.ok = VERT.every(function(v,k){ return (k===q.dom) || ((len(sub(q.pos,v))<SR)===q.mem[k]); })
+           && (q.none ? VERT.every(function(v){return len(sub(q.pos,v))>SR;}) : true);
+  });
+  return P;
+}
+
+var CHAPTERS={"I":"Indication and Intended Use","II":"Adverse Events and Tolerability","III":"Adherence and Patient Retention","IV":"Stability, Storage and Handling","V":"Efficacy and Endpoint Confirmation"};
+var SETNAME=['Places','Guides','Symbols','Rituals'];
+var PL=place(PLATES), N=PL.length;
+
+function regionName(key){
+  var on=[]; for(var k=0;k<4;k++) if(key[k]==='1') on.push(SETNAME[k]);
+  if(!on.length) return 'outside all four';
+  if(on.length===4) return 'all four';
+  if(on.length===1) return on[0]+' only';
+  return on.join(' \u2229 ');
+}
+function code(q){ return q.s.join('\u00b7'); }
+function esc(s){ return s.replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+function cross(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
+
+/* tangent frame for each plate: right and down along the skin */
+PL.forEach(function(q){
+  var up=Math.abs(q.n[1])>.97?[0,0,1]:[0,1,0];
+  q.u=nrm(cross(q.n,up)); q.v=cross(q.u,q.n);
+});
+
+/* ---------------------------------------------------------------- tiles */
+var tilesEl=document.getElementById('tiles');
+PL.forEach(function(q){
+  var el=document.createElement('div'); el.className='tile'; el.dataset.i=q.i;
+  tilesEl.appendChild(el); q.el=el;
+  el.addEventListener('pointerenter',function(){ if(!dragging&&!handActive) setHover(q); });
+  el.addEventListener('pointerleave',function(){ if(hover===q&&!handActive) setHover(null); });
+});
+var loaded=0, counter=document.getElementById('loaded');
+function loadWave(start,size){
+  for(var i=start;i<Math.min(start+size,N);i++)(function(q){
+    var img=new Image(); img.decoding='async'; img.alt='';
+    img.onload=function(){ if(img.classList.contains('in')) return; img.classList.add('in'); loaded++; counter.textContent=loaded; };
+    img.onerror=function(){ if(img.src!==q.p[3]) img.src=q.p[3]; };
+    img.src=thumb(q.p[3],320); q.el.appendChild(img); q.img=img;
+  })(PL[i]);
+  if(start+size<N) setTimeout(function(){ loadWave(start+size,size); },200);
+}
+loadWave(0,24);
+function sharpen(q){                         // bigger file once a plate is in focus
+  if(!q.img||q.sharp) return; q.sharp=true;
+  var hi=new Image(); hi.onload=function(){ q.img.src=hi.src; }; hi.src=thumb(q.p[3],900);
+}
+
+var labelsEl=document.getElementById('labels'), labelBtns=[];
+SETNAME.forEach(function(n,k){
+  var b=document.createElement('button'); b.textContent=n;
+  b.onclick=function(){ setFilter(filter&&filter.t==='set'&&filter.k===k?null:{t:'set',k:k}); };
+  labelsEl.appendChild(b); labelBtns.push(b);
+});
+
+/* ---------------------------------------------------------------- camera */
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+var U=170, F=1100, HOME_DIST=2000;
+var rotX=-12, rotY=28, dist=HOME_DIST, target=[0,0,0];
+var goal=null;                               // {rx,ry,dist} while flying
+var velX=0, velY=0, spinning=!reduce;
+var sep=reduce?0:1, sepTarget=reduce?0:1;
+var showPath=false, hover=null, focus=null, filter=null, lift=0;
+var dragging=false, lastX=0, lastY=0, moved=0;
+var handActive=false;
+setTimeout(function(){ sepTarget=0; syncApart(); },900);
+
+var back=document.getElementById('back'), front=document.getElementById('front');
+var bx=back.getContext('2d'), fx=front.getContext('2d'), W=0, H=0, DPR=1;
+function resize(){
+  DPR=Math.min(2,devicePixelRatio||1); W=innerWidth; H=innerHeight;
+  [back,front].forEach(function(c){ c.width=W*DPR; c.height=H*DPR; });
+  U=Math.min(W,H)*0.22;
+}
+addEventListener('resize',resize); resize();
+
+var CRX,SRX,CRY,SRY;
+function camRot(){ var rx=rotX*Math.PI/180, ry=rotY*Math.PI/180; CRX=Math.cos(rx);SRX=Math.sin(rx);CRY=Math.cos(ry);SRY=Math.sin(ry); }
+function rot(v){                               // world direction -> camera direction
+  var x1=v[0]*CRY+v[2]*SRY, z1=-v[0]*SRY+v[2]*CRY;
+  return [x1, v[1]*CRX-z1*SRX, v[1]*SRX+z1*CRX];
+}
+function project(p){
+  var c=rot([(p[0]-target[0])*U,(p[1]-target[1])*U,(p[2]-target[2])*U]);
+  var d=dist+c[2], k=F/Math.max(40,d);
+  return {x:W/2+c[0]*k, y:H/2+c[1]*k, k:k, z:c[2], cx:c[0], cy:c[1], d:d};
+}
+var SPREAD=1.3;
+function centre(k){ var v=VERT[k], m=1+sep*SPREAD; return [v[0]*m,v[1]*m,v[2]*m]; }
+function worldPos(q){
+  if(q.none){ var m=1+sep*.45; return [q.pos[0]*m,q.pos[1]*m,q.pos[2]*m]; }
+  var v=VERT[q.dom], o=sep*SPREAD;
+  return [q.pos[0]+v[0]*o, q.pos[1]+v[1]*o, q.pos[2]+v[2]*o];
+}
+function matches(q){
+  if(!filter) return true;
+  if(filter.t==='set') return q.mem[filter.k];
+  if(filter.t==='region') return q.key===filter.k;
+  if(filter.t==='chapter') return q.p[2]===filter.k;
+  return true;
+}
+
+/* ---------------------------------------------------------------- focus
+   Flying to a plate turns the camera until the plate's face points at you,
+   then lifts it off the skin so it can be read. */
+var FOCUS_DIST=640;
+function focusOn(q){
+  if(!q) return;
+  focus=q; sharpen(q);
+  var n=q.n, h=Math.hypot(n[0],n[2]);
+  goal={ ry:Math.atan2(n[0],-n[2])*180/Math.PI,
+         rx:Math.max(-80,Math.min(80,Math.atan2(-n[1],h)*180/Math.PI)),
+         dist:FOCUS_DIST };
+  PL.forEach(function(t){ t.el.classList.toggle('focus',t===q); });
+  setHover(null); showFocus();
+  document.body.classList.add('focused');
+}
+function unfocus(){
+  if(!focus) return;
+  focus.el.classList.remove('focus'); focus=null;
+  goal={ rx:rotX, ry:rotY, dist:HOME_DIST };
+  showFocus();
+  document.body.classList.remove('focused');
+}
+function pool(){ var l=PL.filter(matches); return l.length?l:PL; }
+function step(d){
+  var l=pool(), i=focus?l.indexOf(focus):-1;
+  focusOn(l[(i+d+l.length)%l.length]);
+  if(pv.classList.contains('on')) openPlate(focus.i);
+}
+var prevZone=document.getElementById('prevZone'), nextZone=document.getElementById('nextZone');
+prevZone.onclick=function(){ step(-1); }; nextZone.onclick=function(){ step(1); };
+function showFocus(){
+  prevZone.classList.toggle('on',!!focus); nextZone.classList.toggle('on',!!focus);
+  if(focus){
+    readout.innerHTML='<b>'+String(focus.p[0]).padStart(3,'0')+'</b> &nbsp; '+esc(focus.p[1].replace(/\.\s*$/,''))+
+      '<br>'+code(focus)+' &nbsp; '+regionName(focus.key)+' &nbsp; '+focus.p[2]+
+      '<br><span style="color:#b6b3ab">'+(handActive?'pinch again to open':'click again to open')+'</span>';
+  } else readout.innerHTML=filterText();
+}
+
+/* ---------------------------------------------------------------- draw */
+function ring(ctx,c,r,axis){
+  var cz=project(c).z, pts=[];
+  for(var i=0;i<=72;i++){
+    var t=i/72*Math.PI*2, ca=Math.cos(t)*r, sa=Math.sin(t)*r;
+    var p = axis===0 ? [c[0]+ca,c[1],c[2]+sa] : axis===1 ? [c[0],c[1]+ca,c[2]+sa] : [c[0]+ca,c[1]+sa,c[2]];
+    var s=project(p); s.f=s.z<cz; pts.push(s);
+  }
+  var base=ctx.globalAlpha;
+  [[true,.5],[false,.16]].forEach(function(pass){
+    ctx.globalAlpha=base*pass[1]; ctx.beginPath();
+    for(var i=1;i<=72;i++){ if(pts[i].f!==pass[0]||pts[i].d<60) continue;
+      ctx.moveTo(pts[i-1].x,pts[i-1].y); ctx.lineTo(pts[i].x,pts[i].y); }
+    ctx.stroke();
+  });
+  ctx.globalAlpha=base;
+}
+
+function draw(){
+  camRot();
+  bx.setTransform(DPR,0,0,DPR,0,0); bx.clearRect(0,0,W,H);
+  fx.setTransform(DPR,0,0,DPR,0,0); fx.clearRect(0,0,W,H);
+  var oc=project([0,0,0]);
+
+  [0,1,2,3].map(function(k){ var c=centre(k); return {k:k,c:c,s:project(c)}; })
+    .sort(function(a,b){ return b.s.z-a.s.z; })
+    .forEach(function(o){
+      var lit = (filter&&filter.t==='set'&&filter.k===o.k) || (filter&&filter.t==='region'&&filter.k[o.k]==='1');
+      var held = (hover&&hover.mem[o.k]) || (focus&&focus.mem[o.k]);
+      var dimmed = filter && !lit;
+      var r=SR*U*o.s.k;
+      if(o.s.d>60){
+        bx.lineWidth=1; bx.strokeStyle = lit||held ? '#111' : '#8b8880';
+        bx.globalAlpha = dimmed ? .22 : .85;
+        bx.beginPath(); bx.arc(o.s.x,o.s.y,r,0,7); bx.stroke();
+        bx.lineWidth=.7; bx.strokeStyle = dimmed ? '#d8d5cd' : '#b6b3ab';
+        ring(bx,o.c,SR,0); ring(bx,o.c,SR,1); ring(bx,o.c,SR,2);
+        bx.globalAlpha=1;
+      }
+      var dx=o.s.x-oc.x, dy=o.s.y-oc.y, dl=Math.hypot(dx,dy)||1;
+      var lb=labelBtns[o.k];
+      lb.style.transform='translate('+(o.s.x+dx/dl*(r+18)).toFixed(1)+'px,'+(o.s.y+dy/dl*(r+18)).toFixed(1)+'px) translate(-50%,-50%)';
+      lb.style.opacity = focus ? .35 : 1;
+      lb.classList.toggle('on', !!(lit||held));
+    });
+
+  var s0=TW*U/160;
+  lift += ((focus?1:0)-lift)*.08;
+  PL.forEach(function(q){
+    var w=worldPos(q), isF=q===focus, L=isF?lift:0;
+    if(L>0){ w=[w[0]+q.n[0]*.7*L, w[1]+q.n[1]*.7*L, w[2]+q.n[2]*.7*L]; }
+    var s=project(w); q.scr=s; q.w=w;
+    if(s.d<70){ q.el.style.visibility='hidden'; return; }
+    q.el.style.visibility='';
+    var u=rot(q.u), v=rot(q.v), n=rot(q.n);
+    // does the face point at the camera?
+    var facing = -(n[0]*s.cx + n[1]*s.cy + n[2]*(dist+s.z)) > 0;
+    q.facing=facing;
+    if(!facing){ u=[-u[0],-u[1],-u[2]]; n=[-n[0],-n[1],-n[2]]; }   // read the far side unmirrored
+    var sc=s0*(1+(isF?3.6*L:0))*(hover===q&&!isF?1.35:1);
+    var tz=F-s.d;
+    q.el.style.transform='matrix3d('+
+      (u[0]*sc).toFixed(4)+','+(u[1]*sc).toFixed(4)+','+(-u[2]*sc).toFixed(4)+',0,'+
+      (v[0]*sc).toFixed(4)+','+(v[1]*sc).toFixed(4)+','+(-v[2]*sc).toFixed(4)+',0,'+
+      n[0].toFixed(4)+','+n[1].toFixed(4)+','+(-n[2]).toFixed(4)+',0,'+
+      s.cx.toFixed(2)+','+s.cy.toFixed(2)+','+tz.toFixed(2)+',1)';
+    var on=matches(q), depth=Math.max(0,Math.min(1,(s.z+3*U)/(6*U)));
+    var op = on ? (facing ? 1-depth*.45 : .2) : .05;
+    if(focus && !isF) op*= .3;
+    if(isF) op=1;
+    if(hover && hover!==q && on && !focus) op*= hover.key===q.key ? 1 : .4;
+    q.el.style.opacity=op.toFixed(3);
+    q.el.style.zIndex = isF ? 99999 : String(50000-Math.round(s.z));
+    q.el.classList.toggle('off',!on);
+    q.el.classList.toggle('away',!facing);
+  });
+
+  var tA=sep*.2;
+  fx.lineWidth=.6; fx.strokeStyle='#111';
+  if(tA>.01){
+    fx.globalAlpha=tA; fx.beginPath();
+    PL.forEach(function(q){
+      if(!matches(q)||q.none) return;
+      for(var k=0;k<4;k++){ if(!q.mem[k]||k===q.dom) continue;
+        var c=project(centre(k)); fx.moveTo(q.scr.x,q.scr.y); fx.lineTo(c.x,c.y); }
+    });
+    fx.stroke(); fx.globalAlpha=1;
+  }
+  var held=hover||focus;
+  if(held&&!held.none){
+    fx.lineWidth=1; fx.globalAlpha=.7; fx.setLineDash([3,3]); fx.beginPath();
+    for(var k=0;k<4;k++){ if(!held.mem[k]) continue;
+      var c=project(centre(k)); fx.moveTo(held.scr.x,held.scr.y); fx.lineTo(c.x,c.y); }
+    fx.stroke(); fx.setLineDash([]); fx.globalAlpha=1;
+  }
+
+  if(showPath){
+    var pts=['I','II','III','IV','V'].map(function(ch){
+      var a=[0,0,0],n=0; PL.forEach(function(q){ if(q.p[2]===ch){ a[0]+=q.w[0];a[1]+=q.w[1];a[2]+=q.w[2];n++; } });
+      return {ch:ch, s:project([a[0]/n,a[1]/n,a[2]/n])};
+    });
+    fx.setLineDash([5,4]); fx.lineWidth=1; fx.strokeStyle='#111'; fx.beginPath();
+    pts.forEach(function(p,i){ i?fx.lineTo(p.s.x,p.s.y):fx.moveTo(p.s.x,p.s.y); }); fx.stroke();
+    fx.setLineDash([]);
+    fx.font='11px "EB Garamond",Garamond,serif'; fx.textAlign='center'; fx.textBaseline='middle';
+    pts.forEach(function(p){
+      fx.fillStyle='#fff'; fx.beginPath(); fx.arc(p.s.x,p.s.y,11,0,7); fx.fill(); fx.stroke();
+      fx.fillStyle='#111'; fx.fillText(p.ch,p.s.x,p.s.y+.5);
+    });
+  }
+}
+
+function frame(){
+  hands.update();
+  if(goal){
+    var e=reduce?1:.075;
+    rotY += (((goal.ry-rotY)%360+540)%360-180)*e;
+    rotX += (goal.rx-rotX)*e;
+    dist += (goal.dist-dist)*e;
+    if(Math.abs(goal.dist-dist)<2 && Math.abs(goal.rx-rotX)<.2) goal=null;
+    velX=velY=0;
+  } else if(!dragging && !hands.grabbing){
+    velX*=.92;
+    velY = (spinning && !focus && !handActive) ? velY*.94+.0025 : velY*.92;
+    rotX+=velX; rotY+=velY;
+  }
+  rotX=Math.max(-85,Math.min(85,rotX));
+  var t=focus?worldPos(focus):[0,0,0];
+  for(var d=0;d<3;d++) target[d]+=(t[d]-target[d])*(reduce?1:.08);
+  sep += (sepTarget-sep)*(reduce?1:.05);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+/* ---------------------------------------------------------------- readout + filters */
+var readout=document.getElementById('readout');
+function setHover(q){
+  if(hover===q) return;
+  hover=q;
+  PL.forEach(function(t){ t.el.classList.toggle('hot', t===q && t!==focus); });
+  if(focus) return;
+  if(!q){ readout.innerHTML=filterText(); return; }
+  readout.innerHTML='<b>'+String(q.p[0]).padStart(3,'0')+'</b> &nbsp; '+esc(q.p[1].replace(/\.\s*$/,''))+
+    '<br>'+code(q)+' &nbsp; '+regionName(q.key);
+}
+function filterText(){
+  if(!filter) return '';
+  var n=PL.filter(matches).length;
+  var name = filter.t==='set' ? 'in '+SETNAME[filter.k] : filter.t==='region' ? regionName(filter.k) : filter.k+' '+CHAPTERS[filter.k];
+  return '<b>'+n+'</b> plates &nbsp; '+name;
+}
+function setFilter(f){
+  filter=f;
+  Array.prototype.forEach.call(document.querySelectorAll('.panel button[data-f]'),function(b){
+    b.setAttribute('aria-pressed', String(f ? b.dataset.f===f.t+':'+f.k : b.dataset.f==='all'));
+  });
+  if(!hover&&!focus) readout.innerHTML=filterText();
+}
+var chEl=document.getElementById('chapters');
+function btn(parent,label,count,f,disabled){
+  var b=document.createElement('button');
+  b.innerHTML=label+'<span class="ct">'+count+'</span>';
+  b.dataset.f = f ? f.t+':'+f.k : 'all';
+  b.setAttribute('aria-pressed','false');
+  if(disabled) b.disabled=true;
+  b.onclick=function(){ setFilter(!f || (filter&&filter.t===f.t&&filter.k===f.k) ? null : f); };
+  parent.appendChild(b); return b;
+}
+btn(chEl,'all',N,null).setAttribute('aria-pressed','true');
+Object.keys(CHAPTERS).forEach(function(k){
+  btn(chEl,k+'&nbsp; '+CHAPTERS[k], PL.filter(function(q){return q.p[2]===k;}).length, {t:'chapter',k:k});
+});
+var rgEl=document.getElementById('regions'), counts={};
+PL.forEach(function(q){ counts[q.key]=(counts[q.key]||0)+1; });
+var keys=[]; for(var m=1;m<16;m++) keys.push([m&8,m&4,m&2,m&1].map(function(b){return b?1:0;}).join(''));
+keys.sort(function(a,b){ return a.split('1').length-b.split('1').length || (a<b?1:-1); });
+keys.push('0000');
+keys.forEach(function(k){ btn(rgEl,regionName(k),counts[k]||0,{t:'region',k:k},!counts[k]); });
+
+/* ---------------------------------------------------------------- mouse + keys */
+var apartBtn=document.getElementById('apart');
+function syncApart(){ apartBtn.textContent = sepTarget>.5 ? 'fuse' : 'pull apart';
+  apartBtn.setAttribute('aria-pressed', String(sepTarget>.5)); }
+apartBtn.onclick=function(){ sepTarget = sepTarget>.5 ? 0 : 1; syncApart(); };
+var pathBtn=document.getElementById('path');
+pathBtn.onclick=function(){ showPath=!showPath; pathBtn.setAttribute('aria-pressed',String(showPath));
+  pathBtn.textContent = showPath ? 'hide chapter path' : 'show chapter path'; };
+var spinBtn=document.getElementById('spin');
+spinBtn.setAttribute('aria-pressed',String(spinning));
+spinBtn.onclick=function(){ spinning=!spinning; if(!spinning) velY=0; spinBtn.setAttribute('aria-pressed',String(spinning)); };
+document.getElementById('reset').onclick=function(){
+  if(focus) unfocus(); goal={rx:-12,ry:28,dist:HOME_DIST}; sepTarget=0; syncApart(); setFilter(null);
+};
+syncApart();
+
+addEventListener('pointerdown',function(e){
+  if(e.target.closest('.panel,#plate,#labels button,.edge')) return;
+  dragging=true; moved=0; lastX=e.clientX; lastY=e.clientY;
+  document.body.classList.add('dragging');
+});
+addEventListener('pointermove',function(e){
+  if(!dragging) return;
+  var dx=e.clientX-lastX, dy=e.clientY-lastY;
+  lastX=e.clientX; lastY=e.clientY; moved+=Math.abs(dx)+Math.abs(dy);
+  if(moved>6){ goal=null; rotY+=dx*.25; rotX-=dy*.25; velY=dx*.25; velX=-dy*.25; }
+});
+addEventListener('pointerup',function(e){
+  var was=dragging; dragging=false; document.body.classList.remove('dragging');
+  if(!was || moved>=6) return;
+  var t=e.target.closest&&e.target.closest('.tile');
+  if(t){ var q=PL[+t.dataset.i]; if(q===focus) openPlate(q.i); else focusOn(q); }
+  else if(focus) unfocus();
+});
+addEventListener('wheel',function(e){
+  if(e.target.closest('.panel')) return;
+  e.preventDefault(); goal=null;
+  dist=Math.max(260,Math.min(4200,dist+e.deltaY*1.2));
+  if(focus && dist>FOCUS_DIST*2.2) unfocus();
+},{passive:false});
+addEventListener('keydown',function(e){
+  if(pv.classList.contains('on')){
+    if(e.key==='Escape') pv.classList.remove('on');
+    if(e.key==='ArrowLeft') step(-1);
+    if(e.key==='ArrowRight') step(1);
+    return;
+  }
+  if(e.key==='ArrowRight'){ e.preventDefault(); step(1); }
+  if(e.key==='ArrowLeft'){ e.preventDefault(); step(-1); }
+  if(e.key==='Enter' && focus) openPlate(focus.i);
+  if(e.key==='a') apartBtn.click();
+  if(e.key==='p') pathBtn.click();
+  if(e.key==='Escape'){ if(focus) unfocus(); else setFilter(null); }
+});
+
+/* ---------------------------------------------------------------- hand control
+   MediaPipe Hands, up to two hands. Needs http://localhost, not file://.
+   point      aim the ring at a plate
+   pinch      fly to it; pinch the same plate again to open it;
+              pinch at the left or right edge to step while in focus
+   fist       grab the diagram and turn it
+   open hand  push toward the camera to zoom in, pull back to zoom out
+   both hands open, spread apart or together to pull the spheres apart */
+var vid=document.getElementById('vid'), hcv=document.getElementById('hand'), hctx=hcv.getContext('2d');
+var state=document.getElementById('handState'), camBtn=document.getElementById('camBtn'), camOn=false;
+var reticle=document.getElementById('reticle'), gestEl=document.getElementById('gestures');
+function loadScript(src){ return new Promise(function(res,rej){
+  var s=document.createElement('script'); s.src=src; s.crossOrigin='anonymous';
+  s.onload=res; s.onerror=function(){ rej(new Error('could not load '+src)); };
+  document.head.appendChild(s); }); }
+var BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+           [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+function D(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
+
+var hands={
+  raw:null, g:'none', cand:'none', candN:0, rx:null, ry:null, grabbing:false,
+  grabX:0, grabY:0, palm0:0, dist0:0, openN:0, pinchLock:false,
+  classify:function(lm){
+    var palm=D(lm[0],lm[9])||1e-3;
+    var ext=[[8,6],[12,10],[16,14],[20,18]].map(function(f){ return D(lm[0],lm[f[0]])>D(lm[0],lm[f[1]])*1.12; });
+    if(D(lm[4],lm[8])/palm<.32) return 'pinch';
+    if(ext[0]&&ext[1]&&ext[2]&&ext[3]) return 'open';
+    if(ext[0]&&!ext[2]&&!ext[3]) return 'point';
+    if(!ext[0]&&!ext[1]&&!ext[2]&&!ext[3]) return 'fist';
+    return 'idle';
+  },
+  toScreen:function(p){                     // mirrored, with reach margins so edges are easy to hit
+    return [ Math.max(0,Math.min(1,((1-p.x)-.18)/.64))*W, Math.max(0,Math.min(1,(p.y-.15)/.6))*H ];
+  },
+  update:function(){
+    var R=this.raw;
+    if(!R||!R.length){
+      if(handActive){ handActive=false; this.g='none'; this.grabbing=false; reticle.className=''; setHover(null); showFocus(); markGesture('none'); }
+      return;
+    }
+    handActive=true;
+    // two open hands: spread to pull apart
+    if(R.length===2 && this.classify(R[0])==='open' && this.classify(R[1])==='open'){
+      var sp=D(R[0][9],R[1][9]);
+      sepTarget=Math.max(0,Math.min(1,(sp-.3)/.35)); syncApart();
+      this.grabbing=false; reticle.className=''; markGesture('two'); state.textContent='pulling apart';
+      return;
+    }
+    var lm=R[0], g=this.classify(lm);
+    if(g===this.cand) this.candN++; else { this.cand=g; this.candN=1; }
+    var prev=this.g;
+    if(this.candN>=3 || (g==='pinch'&&this.candN>=2)) this.g=g;
+    g=this.g;
+
+    var anchor = g==='point' ? lm[8] : g==='pinch' ? null : lm[9];
+    if(anchor){
+      var s=this.toScreen(anchor);
+      if(!isFinite(s[0])||!isFinite(s[1])){ s=[this.rx||W/2,this.ry||H/2]; }
+      if(!isFinite(this.rx)||!isFinite(this.ry)) this.rx=this.ry=null;
+      this.rx = this.rx===null ? s[0] : this.rx+(s[0]-this.rx)*.45;
+      this.ry = this.ry===null ? s[1] : this.ry+(s[1]-this.ry)*.45;
+    }
+    reticle.style.transform='translate('+this.rx+'px,'+this.ry+'px)';
+    markGesture(g); state.textContent='tracking: '+g;
+
+    var zone = focus||pv.classList.contains('on') ? (this.rx<W*.12?-1:this.rx>W*.88?1:0) : 0;
+    prevZone.classList.toggle('hot',zone===-1); nextZone.classList.toggle('hot',zone===1);
+
+    var cls=g;
+    if(g==='point'){
+      var hit = zone ? null : pick(this.rx,this.ry);
+      if(!pv.classList.contains('on')) setHover(hit);
+      if(hit) cls+=' target';
+    }
+    if(g!=='pinch') this.pinchLock=false;
+    if(g==='pinch' && !this.pinchLock){
+      this.pinchLock=true;
+      if(zone) step(zone);
+      else if(pv.classList.contains('on')) pv.classList.remove('on');
+      else if(hover && hover===focus) openPlate(focus.i);
+      else if(hover) focusOn(hover);
+      else if(focus && focus===pick(this.rx,this.ry)) openPlate(focus.i);
+    }
+    if(g==='fist'){
+      if(prev!=='fist'){ this.grabX=this.rx; this.grabY=this.ry; }
+      var dx=this.rx-this.grabX, dy=this.ry-this.grabY;
+      this.grabX=this.rx; this.grabY=this.ry;
+      goal=null; this.grabbing=true;
+      rotY+=dx*.3; rotX-=dy*.3; velY=dx*.3; velX=-dy*.3;
+    } else this.grabbing=false;
+    if(g==='open'){
+      var palm=D(lm[0],lm[9]);
+      if(prev!=='open'){ this.palm0=palm; this.dist0=dist; this.openN=0; }
+      this.openN++;
+      if(pv.classList.contains('on')){ if(this.openN>10) pv.classList.remove('on'); }
+      else {
+        goal=null;
+        var want=this.dist0*Math.pow(this.palm0/palm,2.2);
+        dist += (Math.max(260,Math.min(4200,want))-dist)*.2;
+        if(focus && dist>FOCUS_DIST*2.2) unfocus();
+      }
+    }
+    reticle.className='on '+cls;
+  }
+};
+function pick(x,y){                           // nearest front-facing plate under the ring
+  var best=null, bd=1e9;
+  PL.forEach(function(q){
+    if(!q.scr||!q.facing||!matches(q)||q.scr.d<70) return;
+    var r=Math.max(26, TW*U*q.scr.k*(q===focus?2.6:.6));
+    var d=Math.hypot(q.scr.x-x,q.scr.y-y);
+    if(d<r && d-q.scr.z*.001<bd){ bd=d-q.scr.z*.001; best=q; }
+  });
+  return best;
+}
+function markGesture(g){
+  Array.prototype.forEach.call(gestEl.children,function(c){ c.classList.toggle('on',c.dataset.g===g); });
+}
+function onHands(results){
+  var S=128; hcv.width=S; hcv.height=S; hctx.clearRect(0,0,S,S);
+  var all=results.multiHandLandmarks||[];
+  hands.raw=all;
+  hctx.strokeStyle='rgba(17,17,17,.72)'; hctx.lineWidth=1.2;
+  all.forEach(function(lm){
+    BONES.forEach(function(b){ hctx.beginPath(); hctx.moveTo(lm[b[0]].x*S,lm[b[0]].y*S); hctx.lineTo(lm[b[1]].x*S,lm[b[1]].y*S); hctx.stroke(); });
+  });
+  if(!all.length) state.textContent='no hand';
+}
+camBtn.onclick=function(){
+  if(camOn) return;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ state.textContent='no camera api'; return; }
+  camBtn.textContent='starting\u2026';
+  var CDN='https://cdn.jsdelivr.net/npm/@mediapipe/hands/';
+  loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js')
+    .then(function(){ return loadScript(CDN+'hands.js'); })
+    .then(function(){
+      var h=new Hands({locateFile:function(f){ return CDN+f; }});
+      h.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.6,minTrackingConfidence:.6});
+      h.onResults(onHands);
+      return new Camera(vid,{onFrame:function(){ return h.send({image:vid}); },width:640,height:480}).start();
+    })
+    .then(function(){ camOn=true; camBtn.textContent='hand control on'; camBtn.setAttribute('aria-pressed','true');
+      document.getElementById('eye').classList.add('on'); gestEl.classList.add('on');
+      document.getElementById('foot').style.display='none'; state.textContent='show a hand'; })
+    .catch(function(err){ camBtn.textContent='hand control';
+      state.textContent = location.protocol==='file:' ? 'needs a local server' : 'camera blocked'; console.error(err); });
+};
+
+/* ---------------------------------------------------------------- plate view */
+var pv=document.getElementById('plate'), current=-1, MAXCH=18, MAXLINES=7;
+function capsLines(s){
+  s=s.replace(/\.\s*$/,'').toUpperCase();
+  var raw=s.split(/\s+/), words=[];
+  raw.forEach(function(w){ while(w.length>MAXCH){ words.push(w.slice(0,MAXCH)); w=w.slice(MAXCH); } if(w) words.push(w); });
+  var out=[], line='';
+  for(var i=0;i<words.length;i++){
+    if((line+' '+words[i]).trim().length>MAXCH){
+      if(line) out.push(line.trim());
+      line=words[i];
+      if(out.length===MAXLINES-1){ var rest=words.slice(i).join(' ');
+        out.push(rest.length>MAXCH?rest.slice(0,MAXCH-1)+'\u2026':rest); return out; }
+    } else line+=' '+words[i];
+  }
+  if(line.trim()) out.push(line.trim());
+  return out;
+}
+function fitSize(lines){
+  var longest=0; lines.forEach(function(l){ longest=Math.max(longest,l.length); });
+  return 'min('+(148/Math.max(longest,1)).toFixed(2)+'vw, '+(84/lines.length).toFixed(2)+'vh, 88px)';
+}
+function openPlate(i){
+  current=i; var q=PL[i], p=q.p, num=String(p[0]).padStart(3,'0');
+  if(focus!==q) focusOn(q);
+  document.getElementById('pShot').src=thumb(p[3],1280);
+  var lines=capsLines(p[1]).concat(['AETERNUM AGENDA','PLATE '+num]);
+  var type=document.getElementById('pType');
+  type.style.fontSize=fitSize(lines);
+  type.innerHTML=lines.map(function(l){ return '<div>'+esc(l)+'</div>'; }).join('');
+  document.getElementById('pChapter').innerHTML=esc(p[2]+'  '+(CHAPTERS[p[2]]||''))+'<br>'+code(q)+' &nbsp; '+regionName(q.key);
+  document.getElementById('pSrc').innerHTML=esc(p[4].toLowerCase())+
+    ' &nbsp;\u00b7&nbsp; <a href="'+p[3]+'" target="_blank" rel="noopener">source</a>';
+  document.getElementById('pNumL').textContent=num;
+  document.getElementById('pNumR').textContent=num;
+  var rules=document.getElementById('pRules'); rules.innerHTML='';
+  var n=lines.length+1;
+  for(var k=1;k<n;k++){ var r=document.createElement('i'); r.style.top=(100*k/n)+'%'; rules.appendChild(r); }
+  var a=document.getElementById('pArcs'); a.setAttribute('preserveAspectRatio','xMidYMid meet');
+  var S=110, cx=500, cy=300, g='<g fill="none" stroke="#d8d5cd" stroke-width="1">';
+  VERT.forEach(function(v,k){ g+='<circle cx="'+(cx+v[0]*S)+'" cy="'+(cy+v[1]*S)+'" r="'+(SR*S)+'"'+(q.mem[k]?' stroke="#8b8880"':'')+'/>'; });
+  g+='</g><circle cx="'+(cx+q.pos[0]*S).toFixed(1)+'" cy="'+(cy+q.pos[1]*S).toFixed(1)+'" r="4" fill="#111"/>';
+  a.innerHTML=g;
+  pv.classList.add('on');
+}
+pv.addEventListener('click',function(e){ if(!e.target.closest('.nav,.top.r')) pv.classList.remove('on'); });
+document.getElementById('pPrev').onclick=function(e){ e.stopPropagation(); step(-1); };
+document.getElementById('pNext').onclick=function(e){ e.stopPropagation(); step(1); };
+// plate view sits above the edge zones; keep them clickable there too
+prevZone.style.zIndex=nextZone.style.zIndex='21';
+
+frame();
+</script>
