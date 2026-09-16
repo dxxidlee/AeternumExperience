@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Aeternum Agenda / Four Spheres</title>
+<title>Aeternum Experience</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.png" sizes="64x64">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
   :root{ --ink:#111; --dim:#8b8880; --line:#d8d5cd; --bg:#fff;
@@ -49,15 +51,17 @@
   #labels button:hover,#labels button.on{color:var(--ink)}
 
   /* ---------------------------------------------------------------- chrome */
-  header{position:fixed;top:0;left:0;right:0;padding:18px 22px;z-index:8;
+  header{position:fixed;top:0;left:0;right:0;padding:16px 22px;z-index:8;
          display:flex;align-items:baseline;gap:16px;pointer-events:none}
-  h1{font-size:13px;font-weight:500;letter-spacing:.1em;text-transform:uppercase}
+  h1{font-family:var(--display);font-weight:400;font-optical-sizing:auto;font-style:normal;
+     font-size:20px;line-height:.9;letter-spacing:-.05em;text-transform:uppercase;
+     font-variant-numeric:lining-nums}
 
-  .panel{position:fixed;top:64px;z-index:8;display:flex;flex-direction:column}
+  .panel{position:fixed;top:58px;z-index:8;display:flex;flex-direction:column}
   .panel h2{font-size:9.5px;font-weight:400;letter-spacing:.04em;color:#b6b3ab;margin:14px 0 4px}
   .panel h2:first-child{margin-top:0}
-  .menu{display:flex;flex-direction:column;margin-bottom:10px}
-  .menu-t{border:0!important;padding:0 0 6px!important;font-size:9.5px;letter-spacing:.04em;
+  .menu{display:flex;flex-direction:column;margin-bottom:5px}
+  .menu-t{border:0!important;padding:0 0 3px!important;font-size:9.5px;letter-spacing:.04em;
         color:#b6b3ab;display:flex;align-items:center;gap:8px;width:100%}
   .menu-t::after{content:"";width:0;height:0;border-left:3.5px solid transparent;
         border-right:3.5px solid transparent;border-top:4px solid currentColor;opacity:.75;
@@ -108,10 +112,11 @@
   #plate .type{position:absolute;inset:0;display:flex;flex-direction:column;
                align-items:center;justify-content:center;padding:0 3vw;pointer-events:none;
                font-family:var(--display);font-weight:400;font-optical-sizing:auto;
-               font-style:normal;color:var(--ink)}
-  #plate .type div{line-height:.72;letter-spacing:-.08em;text-transform:uppercase;
-                   text-align:center;white-space:nowrap}
-  #plate .corner{position:absolute;bottom:20px;font-size:12px;letter-spacing:.04em}
+               font-style:normal;color:var(--ink);font-variant-numeric:lining-nums}
+  #plate .type div{line-height:.9;letter-spacing:-.05em;text-transform:uppercase;
+                   text-align:center;white-space:nowrap;font-variant-numeric:lining-nums}
+  #plate .corner{position:absolute;bottom:20px;font-size:12px;letter-spacing:.04em;
+                 font-variant-numeric:lining-nums}
   #plate .corner.l{left:22px} #plate .corner.r{right:22px}
   #plate .top{position:absolute;top:20px;font-size:10px;letter-spacing:.04em;
               color:var(--dim);line-height:1.8}
@@ -133,7 +138,7 @@
   }
 </style>
 
-<header><h1>Aeternum Agenda</h1></header>
+<header><h1>Aeternum Experience</h1></header>
 
 <nav class="panel" id="left">
   <div class="menu">
@@ -927,7 +932,7 @@ function openPlate(i){
   current=i; var q=PL[i], p=q.p, num=String(p[0]).padStart(3,'0');
   if(focus!==q) focusOn(q);
   document.getElementById('pShot').src=plateSrc(p[0]);
-  var lines=capsLines(p[1]).concat(['AETERNUM AGENDA','PLATE '+num]);
+  var lines=capsLines(p[1]).concat(['AETERNUM EXPERIENCE','PLATE '+num]);
   var type=document.getElementById('pType');
   type.style.fontSize=fitSize(lines);
   type.innerHTML=lines.map(function(l){ return '<div>'+esc(l)+'</div>'; }).join('');
