@@ -78,10 +78,18 @@
   #eye{position:fixed;left:22px;bottom:22px;width:128px;height:128px;border-radius:50%;
        overflow:hidden;z-index:8;pointer-events:none;background:#fff;display:none;
        box-shadow:0 0 0 1px var(--line),0 0 0 7px rgba(255,255,255,.85),0 0 0 8px var(--line)}
-  #eye.on{display:block}
+  #eye.on{display:block;pointer-events:auto;cursor:pointer}
   #eye video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);
              filter:grayscale(1) contrast(1.1);opacity:.9}
   #eye canvas{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1)}
+  #eye.on::after{content:"off";position:absolute;left:0;right:0;bottom:16px;
+        text-align:center;font-size:10px;letter-spacing:.22em;text-transform:uppercase;
+        color:#fff;text-shadow:0 1px 8px #111,0 0 2px #111;pointer-events:none}
+  #camOff{position:fixed;left:166px;bottom:142px;z-index:9;display:none;
+          text-align:left;font-size:10.5px;letter-spacing:.12em;color:var(--ink);
+          padding:0}
+  #camOff.on{display:block}
+  #camOff:hover{color:var(--dim)}
 
   /* ---------------------------------------------------------------- plate view */
   #plate{position:fixed;inset:0;z-index:20;background:var(--bg);opacity:0;
@@ -113,6 +121,7 @@
   .panel,footer,header .sub{transition:opacity .4s}
   @media (max-width:760px){
     .panel,footer,#gestures{display:none!important}
+    #camOff.on{display:block!important}
     #readout{max-width:90vw}
   }
 </style>
@@ -143,7 +152,8 @@
 <button class="edge" id="nextZone">next &rarr;</button>
 
 <div id="readout"></div>
-<div id="eye"><video id="vid" playsinline muted></video><canvas id="hand"></canvas></div>
+<div id="eye" title="Turn camera off"><video id="vid" playsinline muted></video><canvas id="hand"></canvas></div>
+<button type="button" id="camOff">turn camera off</button>
 <div id="gestures">
   <div data-g="point"><b>point</b>aim at a plate</div>
   <div data-g="pinch"><b>pinch</b>fly to it, pinch again to open</div>
@@ -154,7 +164,7 @@
 
 <footer id="foot">
   drag to orbit &nbsp;·&nbsp; scroll to zoom &nbsp;·&nbsp; click a plate to fly to it<br>
-  click again to open &nbsp;·&nbsp; arrows step through &nbsp;·&nbsp; esc backs out
+  click again to open &nbsp;·&nbsp; arrows step through &nbsp;·&nbsp; esc backs out / camera off
 </footer>
 <div id="plate">
   <img class="shot" id="pShot" alt="">
@@ -634,7 +644,7 @@ document.getElementById('reset').onclick=function(){
 syncApart();
 
 addEventListener('pointerdown',function(e){
-  if(e.target.closest('.panel,#plate,#labels button,.edge')) return;
+  if(e.target.closest('.panel,#plate,#labels button,.edge,#eye,#camOff')) return;
   dragging=true; moved=0; lastX=e.clientX; lastY=e.clientY;
   document.body.classList.add('dragging');
 });
@@ -674,7 +684,11 @@ addEventListener('keydown',function(e){
   if(e.key==='Enter' && focus) openPlate(focus.i);
   if(e.key==='a') apartBtn.click();
   if(e.key==='p') pathBtn.click();
-  if(e.key==='Escape'){ if(focus) unfocus(); else setFilter(null); }
+  if(e.key==='Escape'){
+    if(focus) unfocus();
+    else if(camOn) stopCamera();
+    else setFilter(null);
+  }
 });
 
 /* ---------------------------------------------------------------- hand control
@@ -686,7 +700,8 @@ addEventListener('keydown',function(e){
    open hand  push toward the camera to zoom in, pull back to zoom out
    both hands open, spread apart or together to pull the spheres apart */
 var vid=document.getElementById('vid'), hcv=document.getElementById('hand'), hctx=hcv.getContext('2d');
-var state=document.getElementById('handState'), camBtn=document.getElementById('camBtn'), camOn=false;
+var state=document.getElementById('handState'), camBtn=document.getElementById('camBtn'), camOn=false, camBusy=false, camGen=0;
+var camOff=document.getElementById('camOff'), mpHands=null, mpCam=null, camScripts=null;
 var reticle=document.getElementById('reticle'), gestEl=document.getElementById('gestures');
 function loadScript(src){ return new Promise(function(res,rej){
   var s=document.createElement('script'); s.src=src; s.crossOrigin='anonymous';
@@ -796,6 +811,7 @@ function markGesture(g){
   Array.prototype.forEach.call(gestEl.children,function(c){ c.classList.toggle('on',c.dataset.g===g); });
 }
 function onHands(results){
+  if(!camOn) return;
   var S=128; hcv.width=S; hcv.height=S; hctx.clearRect(0,0,S,S);
   var all=results.multiHandLandmarks||[];
   hands.raw=all;
@@ -805,31 +821,69 @@ function onHands(results){
   });
   if(!all.length) state.textContent='no hand';
 }
-camBtn.onclick=function(){
-  if(camOn) return;
+function setCamUI(on){
+  camOn=on;
+  camBtn.textContent = on ? 'turn camera off' : 'hand control';
+  camBtn.setAttribute('aria-pressed', String(on));
+  document.getElementById('eye').classList.toggle('on', on);
+  camOff.classList.toggle('on', on);
+  gestEl.classList.toggle('on', on);
+  document.getElementById('foot').style.display = on ? 'none' : '';
+  if(!on) state.textContent='camera off';
+}
+function stopCamera(){
+  camGen++;
+  camBusy=false;
+  if(mpCam && mpCam.stop) try{ mpCam.stop(); }catch(e){}
+  mpCam=null;
+  if(vid.srcObject){ vid.srcObject.getTracks().forEach(function(t){ t.stop(); }); vid.srcObject=null; }
+  hands.raw=null; hands.g='none'; hands.grabbing=false; hands.rx=hands.ry=null;
+  handActive=false; reticle.className='';
+  setHover(null); markGesture('none');
+  prevZone.classList.remove('hot'); nextZone.classList.remove('hot');
+  hctx.clearRect(0,0,hcv.width,hcv.height);
+  setCamUI(false);
+}
+function startCamera(){
+  if(camOn||camBusy) return;
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ state.textContent='no camera api'; return; }
-  camBtn.textContent='starting\u2026';
+  var gen=++camGen;
+  camBusy=true; camBtn.textContent='starting\u2026'; state.textContent='starting camera';
   var CDN='https://cdn.jsdelivr.net/npm/@mediapipe/hands/';
-  loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js')
-    .then(function(){ return loadScript(CDN+'hands.js'); })
+  var ready = camScripts || (camScripts=loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js')
+    .then(function(){ return loadScript(CDN+'hands.js'); }));
+  ready
     .then(function(){
-      var h=new Hands({locateFile:function(f){ return CDN+f; }});
-      h.setOptions({maxNumHands:2,modelComplexity:0,minDetectionConfidence:.55,minTrackingConfidence:.5});
-      h.onResults(onHands);
+      if(gen!==camGen) return;
+      if(!mpHands){
+        mpHands=new Hands({locateFile:function(f){ return CDN+f; }});
+        mpHands.setOptions({maxNumHands:2,modelComplexity:0,minDetectionConfidence:.55,minTrackingConfidence:.5});
+        mpHands.onResults(onHands);
+      }
       var lastSend=0;
-      return new Camera(vid,{onFrame:function(){
+      mpCam=new Camera(vid,{onFrame:function(){
+        if(!camOn||!mpHands||gen!==camGen) return Promise.resolve();
         var now=performance.now();
         if(now-lastSend<45) return Promise.resolve();
         lastSend=now;
-        return h.send({image:vid});
-      },width:320,height:240}).start();
+        return mpHands.send({image:vid});
+      },width:320,height:240});
+      return mpCam.start();
     })
-    .then(function(){ camOn=true; camBtn.textContent='hand control on'; camBtn.setAttribute('aria-pressed','true');
-      document.getElementById('eye').classList.add('on'); gestEl.classList.add('on');
-      document.getElementById('foot').style.display='none'; state.textContent='show a hand'; })
-    .catch(function(err){ camBtn.textContent='hand control';
-      state.textContent = location.protocol==='file:' ? 'needs a local server' : 'camera blocked'; console.error(err); });
-};
+    .then(function(){
+      if(gen!==camGen){ if(mpCam&&mpCam.stop) try{ mpCam.stop(); }catch(e){} return; }
+      camBusy=false; setCamUI(true); state.textContent='show a hand';
+    })
+    .catch(function(err){
+      if(gen!==camGen) return;
+      camBusy=false; stopCamera();
+      state.textContent = location.protocol==='file:' ? 'needs a local server' : 'camera blocked';
+      console.error(err);
+    });
+}
+camBtn.onclick=function(){ if(camOn||camBusy) stopCamera(); else startCamera(); };
+camOff.onclick=function(){ stopCamera(); };
+document.getElementById('eye').onclick=function(){ stopCamera(); };
 
 /* ---------------------------------------------------------------- plate view */
 var pv=document.getElementById('plate'), current=-1, MAXCH=18, MAXLINES=7;
