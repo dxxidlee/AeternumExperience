@@ -2,10 +2,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Aeternum Agenda / Four Spheres</title>
-<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
   :root{ --ink:#111; --dim:#8b8880; --line:#d8d5cd; --bg:#fff;
-         --serif:"EB Garamond",Garamond,serif; }
+         --serif:"EB Garamond",Garamond,serif;
+         --display:"Cormorant Garamond",Garamond,serif; }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--serif)}
   body{cursor:grab;touch-action:none} body.dragging{cursor:grabbing}
@@ -29,7 +30,7 @@
   #reticle.target i{transform:scale(1.25)}
 
   .edge{position:fixed;top:30vh;bottom:30vh;width:90px;z-index:9;display:none;align-items:center;
-        font-size:11px;letter-spacing:.2em;color:var(--dim)}
+        font-size:11px;letter-spacing:.04em;color:var(--dim)}
   .edge.on{display:flex}
   .edge.hot{color:var(--ink);background:linear-gradient(90deg,rgba(17,17,17,.04),transparent)}
   #prevZone{left:0;justify-content:flex-start;padding-left:22px}
@@ -37,27 +38,36 @@
   #nextZone.hot{background:linear-gradient(270deg,rgba(17,17,17,.04),transparent)}
 
   #gestures{position:fixed;left:166px;bottom:24px;z-index:8;display:none;font-size:10.5px;
-            letter-spacing:.1em;color:#b6b3ab;line-height:1.85}
+            letter-spacing:.03em;color:#b6b3ab;line-height:1.85}
   #gestures.on{display:block}
   #gestures div b{display:inline-block;width:92px;font-weight:400}
   #gestures div.on{color:var(--ink)}
   #labels{position:fixed;inset:0;z-index:5;pointer-events:none}
   #labels button{position:absolute;left:0;top:0;pointer-events:auto;font-size:12px;
-        letter-spacing:.3em;text-transform:uppercase;padding:4px 6px;white-space:nowrap;
+        letter-spacing:.08em;text-transform:uppercase;padding:4px 6px;white-space:nowrap;
         transform:translate(-50%,-100%);color:var(--dim);transition:color .2s}
   #labels button:hover,#labels button.on{color:var(--ink)}
 
   /* ---------------------------------------------------------------- chrome */
   header{position:fixed;top:0;left:0;right:0;padding:18px 22px;z-index:8;
          display:flex;align-items:baseline;gap:16px;pointer-events:none}
-  h1{font-size:13px;font-weight:500;letter-spacing:.34em;text-transform:uppercase}
-  header .sub{font-size:11px;color:var(--dim);letter-spacing:.14em}
+  h1{font-size:13px;font-weight:500;letter-spacing:.1em;text-transform:uppercase}
 
   .panel{position:fixed;top:64px;z-index:8;display:flex;flex-direction:column}
-  .panel h2{font-size:9.5px;font-weight:400;letter-spacing:.2em;color:#b6b3ab;margin:14px 0 4px}
+  .panel h2{font-size:9.5px;font-weight:400;letter-spacing:.04em;color:#b6b3ab;margin:14px 0 4px}
   .panel h2:first-child{margin-top:0}
+  .menu{display:flex;flex-direction:column;margin-bottom:10px}
+  .menu-t{border:0!important;padding:0 0 6px!important;font-size:9.5px;letter-spacing:.04em;
+        color:#b6b3ab;display:flex;align-items:center;gap:8px;width:100%}
+  .menu-t::after{content:"";width:0;height:0;border-left:3.5px solid transparent;
+        border-right:3.5px solid transparent;border-top:4px solid currentColor;opacity:.75;
+        margin-top:1px;transition:transform .18s ease}
+  .menu.open .menu-t{color:var(--ink)}
+  .menu.open .menu-t::after{transform:rotate(180deg)}
+  .menu-b{display:none;flex-direction:column;max-height:min(58vh,480px);overflow:auto}
+  .menu.open .menu-b{display:flex}
   .panel button{border-left:1px solid var(--line);padding:3px 0 3px 10px;font-size:10.5px;
-        letter-spacing:.1em;color:var(--dim);text-align:left;transition:color .2s,border-color .2s}
+        letter-spacing:.03em;color:var(--dim);text-align:left;transition:color .2s,border-color .2s}
   .panel button:hover{color:var(--ink)}
   .panel button[aria-pressed=true]{color:var(--ink);border-left-color:var(--ink)}
   .panel button:disabled{color:#d4d1c9;cursor:default}
@@ -68,25 +78,21 @@
   #right button[aria-pressed=true]{border-right-color:var(--ink)}
 
   #readout{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:8;
-           text-align:center;font-size:11px;letter-spacing:.12em;color:var(--dim);
+           text-align:center;font-size:11px;letter-spacing:.03em;color:var(--dim);
            pointer-events:none;max-width:52vw;line-height:1.7}
   #readout b{color:var(--ink);font-weight:400}
 
-  footer{position:fixed;right:22px;bottom:22px;z-index:8;font-size:10px;letter-spacing:.12em;
+  footer{position:fixed;right:22px;bottom:22px;z-index:8;font-size:10px;letter-spacing:.03em;
          color:#b6b3ab;text-align:right;line-height:1.9;pointer-events:none}
 
   #eye{position:fixed;left:22px;bottom:22px;width:128px;height:128px;border-radius:50%;
        overflow:hidden;z-index:8;pointer-events:none;background:#fff;display:none;
        box-shadow:0 0 0 1px var(--line),0 0 0 7px rgba(255,255,255,.85),0 0 0 8px var(--line)}
-  #eye.on{display:block;pointer-events:auto;cursor:pointer}
-  #eye video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);
-             filter:grayscale(1) contrast(1.1);opacity:.9}
+  #eye.on{display:block}
+  #eye video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.9}
   #eye canvas{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1)}
-  #eye.on::after{content:"off";position:absolute;left:0;right:0;bottom:16px;
-        text-align:center;font-size:10px;letter-spacing:.22em;text-transform:uppercase;
-        color:#fff;text-shadow:0 1px 8px #111,0 0 2px #111;pointer-events:none}
   #camOff{position:fixed;left:166px;bottom:142px;z-index:9;display:none;
-          text-align:left;font-size:10.5px;letter-spacing:.12em;color:var(--ink);
+          text-align:left;font-size:10.5px;letter-spacing:.03em;color:var(--ink);
           padding:0}
   #camOff.on{display:block}
   #camOff:hover{color:var(--dim)}
@@ -97,28 +103,29 @@
   #plate.on{opacity:1;pointer-events:auto}
   #plate .shot{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
                max-width:78vw;max-height:76vh;opacity:.4}
-  #plate svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-  #plate .rules{position:absolute;inset:0;pointer-events:none}
-  #plate .rules i{position:absolute;left:0;right:0;height:1px;background:var(--line)}
+  #plate svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
+             color:var(--ink);opacity:1}
   #plate .type{position:absolute;inset:0;display:flex;flex-direction:column;
-               align-items:center;justify-content:center;padding:0 3vw;pointer-events:none}
-  #plate .type div{line-height:.97;letter-spacing:.015em;text-transform:uppercase;
+               align-items:center;justify-content:center;padding:0 3vw;pointer-events:none;
+               font-family:var(--display);font-weight:400;font-optical-sizing:auto;
+               font-style:normal;color:var(--ink)}
+  #plate .type div{line-height:.72;letter-spacing:-.08em;text-transform:uppercase;
                    text-align:center;white-space:nowrap}
-  #plate .corner{position:absolute;bottom:20px;font-size:12px;letter-spacing:.12em}
+  #plate .corner{position:absolute;bottom:20px;font-size:12px;letter-spacing:.04em}
   #plate .corner.l{left:22px} #plate .corner.r{right:22px}
-  #plate .top{position:absolute;top:20px;font-size:10px;letter-spacing:.2em;
-              text-transform:uppercase;color:var(--dim);line-height:1.8}
+  #plate .top{position:absolute;top:20px;font-size:10px;letter-spacing:.04em;
+              color:var(--dim);line-height:1.8}
   #plate .top.l{left:22px} #plate .top.r{right:22px;text-align:right}
   #plate .top a{color:var(--dim);text-decoration:none;border-bottom:1px solid var(--line)}
   #plate .top a:hover{color:var(--ink)}
   #plate .nav{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);
-              font-size:10px;letter-spacing:.16em;color:var(--dim)}
-  #plate .nav button{font-size:10px;letter-spacing:.16em;color:var(--dim);padding:0 10px}
+              font-size:10px;letter-spacing:.04em;color:var(--dim)}
+  #plate .nav button{font-size:10px;letter-spacing:.04em;color:var(--dim);padding:0 10px}
   #plate .nav button:hover{color:var(--ink)}
 
-  body.focused .panel,body.focused footer,body.focused header .sub{opacity:.12}
+  body.focused .panel,body.focused footer{opacity:.12}
   body.focused .panel:hover{opacity:1}
-  .panel,footer,header .sub{transition:opacity .4s}
+  .panel,footer{transition:opacity .4s}
   @media (max-width:760px){
     .panel,footer,#gestures{display:none!important}
     #camOff.on{display:block!important}
@@ -126,21 +133,27 @@
   }
 </style>
 
-<header><h1>Aeternum Agenda</h1><span class="sub">256 plates, four spheres</span></header>
+<header><h1>Aeternum Agenda</h1></header>
 
 <nav class="panel" id="left">
-  <h2>chapters</h2><div id="chapters" style="display:contents"></div>
-  <h2>regions</h2><div id="regions" style="display:contents"></div>
+  <div class="menu">
+    <button type="button" class="menu-t" aria-expanded="false" aria-controls="chapters">Chapters</button>
+    <div id="chapters" class="menu-b"></div>
+  </div>
+  <div class="menu">
+    <button type="button" class="menu-t" aria-expanded="false" aria-controls="regions">Regions</button>
+    <div id="regions" class="menu-b"></div>
+  </div>
 </nav>
 
 <div class="panel" id="right">
   <h2><span id="loaded">0</span> / 256 loaded</h2>
-  <button id="apart" aria-pressed="false">pull apart</button>
-  <button id="path" aria-pressed="false">show chapter path</button>
-  <button id="spin" aria-pressed="true">rotation</button>
-  <button id="camBtn" aria-pressed="false">hand control</button>
-  <button id="reset">reset view</button>
-  <h2 id="handState">camera off</h2>
+  <button id="apart" aria-pressed="false">Pull apart</button>
+  <button id="path" aria-pressed="false">Show chapter path</button>
+  <button id="spin" aria-pressed="true">Rotation</button>
+  <button id="camBtn" aria-pressed="false">Hand control</button>
+  <button id="reset">Reset view</button>
+  <h2 id="handState">Camera off</h2>
 </div>
 
 <canvas class="layer" id="back"></canvas>
@@ -148,34 +161,33 @@
 <canvas class="layer" id="front"></canvas>
 <div id="labels"></div>
 <div id="reticle"><i></i><b></b></div>
-<button class="edge" id="prevZone">&larr; prev</button>
-<button class="edge" id="nextZone">next &rarr;</button>
+<button class="edge" id="prevZone">&larr; Prev</button>
+<button class="edge" id="nextZone">Next &rarr;</button>
 
 <div id="readout"></div>
-<div id="eye" title="Turn camera off"><video id="vid" playsinline muted></video><canvas id="hand"></canvas></div>
-<button type="button" id="camOff">turn camera off</button>
+<div id="eye" title="Camera"><video id="vid" playsinline muted></video><canvas id="hand"></canvas></div>
+<button type="button" id="camOff">Turn camera off</button>
 <div id="gestures">
-  <div data-g="point"><b>point</b>aim at a plate</div>
-  <div data-g="pinch"><b>pinch</b>fly to it, pinch again to open</div>
-  <div data-g="fist"><b>fist</b>grab and turn</div>
-  <div data-g="open"><b>open hand</b>push in or pull back to zoom</div>
-  <div data-g="two"><b>both hands</b>spread to pull the spheres apart</div>
+  <div data-g="point"><b>Point</b>Aim at a plate</div>
+  <div data-g="pinch"><b>Pinch</b>Fly to it, pinch again to open</div>
+  <div data-g="fist"><b>Fist</b>Grab and turn</div>
+  <div data-g="open"><b>Open hand</b>Push in or pull back to zoom</div>
+  <div data-g="two"><b>Both hands</b>Spread to pull the spheres apart</div>
 </div>
 
 <footer id="foot">
-  drag to orbit &nbsp;·&nbsp; scroll to zoom &nbsp;·&nbsp; click a plate to fly to it<br>
-  click again to open &nbsp;·&nbsp; arrows step through &nbsp;·&nbsp; esc backs out / camera off
+  Drag to orbit &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Click a plate to fly to it<br>
+  Click again to open &nbsp;·&nbsp; Arrows step through &nbsp;·&nbsp; Esc backs out / camera off
 </footer>
 <div id="plate">
   <img class="shot" id="pShot" alt="">
   <svg id="pArcs" viewBox="0 0 1000 600" preserveAspectRatio="none"></svg>
-  <div class="rules" id="pRules"></div>
   <div class="type" id="pType"></div>
   <div class="top l" id="pChapter"></div>
   <div class="top r" id="pSrc"></div>
   <div class="corner l" id="pNumL"></div>
   <div class="corner r" id="pNumR"></div>
-  <div class="nav"><button id="pPrev">&larr; prev</button>esc to close<button id="pNext">next &rarr;</button></div>
+  <div class="nav"><button id="pPrev">&larr; Prev</button>Esc to close<button id="pNext">Next &rarr;</button></div>
 </div>
 
 <script>
@@ -282,16 +294,21 @@ function place(plates){
   return P;
 }
 
-var CHAPTERS={"I":"Indication and Intended Use","II":"Adverse Events and Tolerability","III":"Adherence and Patient Retention","IV":"Stability, Storage and Handling","V":"Efficacy and Endpoint Confirmation"};
+var CHAPTERS={"I":"Indication and intended use","II":"Adverse events and tolerability","III":"Adherence and patient retention","IV":"Stability, storage and handling","V":"Efficacy and endpoint confirmation"};
 var SETNAME=['Places','Guides','Symbols','Rituals'];
 var PL=place(PLATES), N=PL.length;
 
 function regionName(key){
   var on=[]; for(var k=0;k<4;k++) if(key[k]==='1') on.push(SETNAME[k]);
-  if(!on.length) return 'outside all four';
-  if(on.length===4) return 'all four';
+  if(!on.length) return 'Outside all four';
+  if(on.length===4) return 'All four';
   if(on.length===1) return on[0]+' only';
   return on.join(' \u2229 ');
+}
+function sentence(s){
+  s=String(s||'').replace(/^\s+/, '');
+  if(!s) return s;
+  return s.charAt(0).toUpperCase()+s.slice(1);
 }
 function code(q){ return q.s.join('\u00b7'); }
 function esc(s){ return s.replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
@@ -413,7 +430,7 @@ function showFocus(){
   if(focus){
     readout.innerHTML='<b>'+String(focus.p[0]).padStart(3,'0')+'</b> &nbsp; '+esc(focus.p[1].replace(/\.\s*$/,''))+
       '<br>'+code(focus)+' &nbsp; '+regionName(focus.key)+' &nbsp; '+focus.p[2]+
-      '<br><span style="color:#b6b3ab">'+(handActive?'pinch again to open':'click again to open')+'</span>';
+      '<br><span style="color:#b6b3ab">'+(handActive?'Pinch again to open':'Click again to open')+'</span>';
   } else readout.innerHTML=filterText();
 }
 
@@ -506,17 +523,11 @@ function draw(){
     var hi=q.hi, useHi=q._isF&&hi&&hi.complete&&hi.naturalWidth;
     if(useHi){
       var iw=hi.naturalWidth, ih=hi.naturalHeight, rr=Math.min(160/iw,120/ih);
-      mx.fillStyle='#fff'; mx.fillRect(-80,-60,160,120);
       mx.drawImage(hi,-iw*rr/2,-ih*rr/2,iw*rr,ih*rr);
     } else if(hasAtlas){
       var idx=q.i, col=idx%AC, row=(idx/AC)|0;
       mx.drawImage(src,col*AW,row*AH,AW,AH,-80,-60,160,120);
-    } else {
-      mx.fillStyle='#f4f3ef'; mx.fillRect(-80,-60,160,120);
     }
-    mx.strokeStyle=(hover===q&&!q._isF)||q._isF?'#111':'#d8d5cd';
-    mx.lineWidth=(hover===q||q._isF?2:1)/Math.max(sc,.001);
-    mx.strokeRect(-80,-60,160,120);
   }
   mx.globalAlpha=1;
   mx.setTransform(DPR,0,0,DPR,0,0);
@@ -597,7 +608,7 @@ function filterText(){
   if(!filter) return '';
   var n=PL.filter(matches).length;
   var name = filter.t==='set' ? 'in '+SETNAME[filter.k] : filter.t==='region' ? regionName(filter.k) : filter.k+' '+CHAPTERS[filter.k];
-  return '<b>'+n+'</b> plates &nbsp; '+name;
+  return '<b>'+n+'</b> plates &nbsp; '+sentence(name);
 }
 function setFilter(f){
   filter=f;
@@ -616,7 +627,7 @@ function btn(parent,label,count,f,disabled){
   b.onclick=function(){ setFilter(!f || (filter&&filter.t===f.t&&filter.k===f.k) ? null : f); };
   parent.appendChild(b); return b;
 }
-btn(chEl,'all',N,null).setAttribute('aria-pressed','true');
+btn(chEl,'All',N,null).setAttribute('aria-pressed','true');
 Object.keys(CHAPTERS).forEach(function(k){
   btn(chEl,k+'&nbsp; '+CHAPTERS[k], PL.filter(function(q){return q.p[2]===k;}).length, {t:'chapter',k:k});
 });
@@ -626,15 +637,21 @@ var keys=[]; for(var m=1;m<16;m++) keys.push([m&8,m&4,m&2,m&1].map(function(b){r
 keys.sort(function(a,b){ return a.split('1').length-b.split('1').length || (a<b?1:-1); });
 keys.push('0000');
 keys.forEach(function(k){ btn(rgEl,regionName(k),counts[k]||0,{t:'region',k:k},!counts[k]); });
+Array.prototype.forEach.call(document.querySelectorAll('.menu-t'),function(t){
+  t.onclick=function(){
+    var m=t.parentNode, open=m.classList.toggle('open');
+    t.setAttribute('aria-expanded', String(open));
+  };
+});
 
 /* ---------------------------------------------------------------- mouse + keys */
 var apartBtn=document.getElementById('apart');
-function syncApart(){ apartBtn.textContent = sepTarget>.5 ? 'fuse' : 'pull apart';
+function syncApart(){ apartBtn.textContent = sepTarget>.5 ? 'Fuse' : 'Pull apart';
   apartBtn.setAttribute('aria-pressed', String(sepTarget>.5)); }
 apartBtn.onclick=function(){ sepTarget = sepTarget>.5 ? 0 : 1; syncApart(); };
 var pathBtn=document.getElementById('path');
 pathBtn.onclick=function(){ showPath=!showPath; pathBtn.setAttribute('aria-pressed',String(showPath));
-  pathBtn.textContent = showPath ? 'hide chapter path' : 'show chapter path'; };
+  pathBtn.textContent = showPath ? 'Hide chapter path' : 'Show chapter path'; };
 var spinBtn=document.getElementById('spin');
 spinBtn.setAttribute('aria-pressed',String(spinning));
 spinBtn.onclick=function(){ spinning=!spinning; if(!spinning) velY=0; spinBtn.setAttribute('aria-pressed',String(spinning)); };
@@ -644,7 +661,7 @@ document.getElementById('reset').onclick=function(){
 syncApart();
 
 addEventListener('pointerdown',function(e){
-  if(e.target.closest('.panel,#plate,#labels button,.edge,#eye,#camOff')) return;
+  if(e.target.closest('.panel,#plate,#labels button,.edge,#camOff')) return;
   dragging=true; moved=0; lastX=e.clientX; lastY=e.clientY;
   document.body.classList.add('dragging');
 });
@@ -737,7 +754,7 @@ var hands={
     if(R.length===2 && this.classify(R[0])==='open' && this.classify(R[1])==='open'){
       var sp=D(R[0][9],R[1][9]);
       sepTarget=Math.max(0,Math.min(1,(sp-.3)/.35)); syncApart();
-      this.grabbing=false; reticle.className=''; markGesture('two'); state.textContent='pulling apart';
+      this.grabbing=false; reticle.className=''; markGesture('two'); state.textContent='Pulling apart';
       return;
     }
     var lm=R[0], g=this.classify(lm);
@@ -755,7 +772,7 @@ var hands={
       this.ry = this.ry===null ? s[1] : this.ry+(s[1]-this.ry)*.45;
     }
     reticle.style.transform='translate('+this.rx+'px,'+this.ry+'px)';
-    markGesture(g); state.textContent='tracking: '+g;
+    markGesture(g); state.textContent='Tracking: '+sentence(g);
 
     var zone = focus||pv.classList.contains('on') ? (this.rx<W*.12?-1:this.rx>W*.88?1:0) : 0;
     prevZone.classList.toggle('hot',zone===-1); nextZone.classList.toggle('hot',zone===1);
@@ -819,17 +836,17 @@ function onHands(results){
   all.forEach(function(lm){
     BONES.forEach(function(b){ hctx.beginPath(); hctx.moveTo(lm[b[0]].x*S,lm[b[0]].y*S); hctx.lineTo(lm[b[1]].x*S,lm[b[1]].y*S); hctx.stroke(); });
   });
-  if(!all.length) state.textContent='no hand';
+  if(!all.length) state.textContent='No hand';
 }
 function setCamUI(on){
   camOn=on;
-  camBtn.textContent = on ? 'turn camera off' : 'hand control';
+  camBtn.textContent = on ? 'Turn camera off' : 'Hand control';
   camBtn.setAttribute('aria-pressed', String(on));
   document.getElementById('eye').classList.toggle('on', on);
   camOff.classList.toggle('on', on);
   gestEl.classList.toggle('on', on);
   document.getElementById('foot').style.display = on ? 'none' : '';
-  if(!on) state.textContent='camera off';
+  if(!on) state.textContent='Camera off';
 }
 function stopCamera(){
   camGen++;
@@ -846,9 +863,9 @@ function stopCamera(){
 }
 function startCamera(){
   if(camOn||camBusy) return;
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ state.textContent='no camera api'; return; }
+      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ state.textContent='No camera API'; return; }
   var gen=++camGen;
-  camBusy=true; camBtn.textContent='starting\u2026'; state.textContent='starting camera';
+  camBusy=true; camBtn.textContent='Starting\u2026'; state.textContent='Starting camera';
   var CDN='https://cdn.jsdelivr.net/npm/@mediapipe/hands/';
   var ready = camScripts || (camScripts=loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js')
     .then(function(){ return loadScript(CDN+'hands.js'); }));
@@ -872,18 +889,17 @@ function startCamera(){
     })
     .then(function(){
       if(gen!==camGen){ if(mpCam&&mpCam.stop) try{ mpCam.stop(); }catch(e){} return; }
-      camBusy=false; setCamUI(true); state.textContent='show a hand';
+      camBusy=false; setCamUI(true); state.textContent='Show a hand';
     })
     .catch(function(err){
       if(gen!==camGen) return;
       camBusy=false; stopCamera();
-      state.textContent = location.protocol==='file:' ? 'needs a local server' : 'camera blocked';
+      state.textContent = location.protocol==='file:' ? 'Needs a local server' : 'Camera blocked';
       console.error(err);
     });
 }
 camBtn.onclick=function(){ if(camOn||camBusy) stopCamera(); else startCamera(); };
 camOff.onclick=function(){ stopCamera(); };
-document.getElementById('eye').onclick=function(){ stopCamera(); };
 
 /* ---------------------------------------------------------------- plate view */
 var pv=document.getElementById('plate'), current=-1, MAXCH=18, MAXLINES=7;
@@ -916,17 +932,14 @@ function openPlate(i){
   type.style.fontSize=fitSize(lines);
   type.innerHTML=lines.map(function(l){ return '<div>'+esc(l)+'</div>'; }).join('');
   document.getElementById('pChapter').innerHTML=esc(p[2]+'  '+(CHAPTERS[p[2]]||''))+'<br>'+code(q)+' &nbsp; '+regionName(q.key);
-  document.getElementById('pSrc').innerHTML=esc(p[4].toLowerCase())+
-    ' &nbsp;\u00b7&nbsp; <a href="'+p[3]+'" target="_blank" rel="noopener">source</a>';
+  document.getElementById('pSrc').innerHTML=esc(p[4])+
+    ' &nbsp;\u00b7&nbsp; <a href="'+p[3]+'" target="_blank" rel="noopener">Source</a>';
   document.getElementById('pNumL').textContent=num;
   document.getElementById('pNumR').textContent=num;
-  var rules=document.getElementById('pRules'); rules.innerHTML='';
-  var n=lines.length+1;
-  for(var k=1;k<n;k++){ var r=document.createElement('i'); r.style.top=(100*k/n)+'%'; rules.appendChild(r); }
   var a=document.getElementById('pArcs'); a.setAttribute('preserveAspectRatio','xMidYMid meet');
-  var S=110, cx=500, cy=300, g='<g fill="none" stroke="#d8d5cd" stroke-width="1">';
-  VERT.forEach(function(v,k){ g+='<circle cx="'+(cx+v[0]*S)+'" cy="'+(cy+v[1]*S)+'" r="'+(SR*S)+'"'+(q.mem[k]?' stroke="#8b8880"':'')+'/>'; });
-  g+='</g><circle cx="'+(cx+q.pos[0]*S).toFixed(1)+'" cy="'+(cy+q.pos[1]*S).toFixed(1)+'" r="4" fill="#111"/>';
+  var S=110, cx=500, cy=300, g='<g fill="none" stroke="currentColor" stroke-width="1" opacity="1">';
+  VERT.forEach(function(v,k){ g+='<circle cx="'+(cx+v[0]*S)+'" cy="'+(cy+v[1]*S)+'" r="'+(SR*S)+'"/>'; });
+  g+='</g><circle cx="'+(cx+q.pos[0]*S).toFixed(1)+'" cy="'+(cy+q.pos[1]*S).toFixed(1)+'" r="4" fill="currentColor"/>';
   a.innerHTML=g;
   pv.classList.add('on');
 }
