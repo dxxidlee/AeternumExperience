@@ -38,12 +38,14 @@
   #nextZone{right:0;justify-content:flex-end;padding-right:22px}
   #nextZone.hot{background:linear-gradient(270deg,rgba(17,17,17,.04),transparent)}
 
-  #gestures{position:fixed;left:166px;bottom:24px;z-index:8;display:none;font-size:11.8px;
-            letter-spacing:.03em;color:#b6b3ab;line-height:1.5}
+  #gestures{position:fixed;left:166px;bottom:24px;z-index:9;display:none;font-size:11.8px;
+            letter-spacing:.03em;color:#b6b3ab;line-height:1.5;width:280px}
   #gestures.on{display:block}
   #gestures div b{display:inline-block;width:104px;font-weight:400}
   #gestures div.on{color:var(--ink)}
-  #labels{position:fixed;inset:0;z-index:5;pointer-events:none}
+  #labels{position:fixed;inset:0;z-index:5;pointer-events:none;
+          clip-path:inset(0 0 150px 0)}
+  body.cam #labels{clip-path:inset(0 0 150px 460px)}
   #labels button{position:absolute;left:0;top:0;pointer-events:auto;font-size:12px;
         letter-spacing:.08em;text-transform:uppercase;padding:4px 6px;white-space:nowrap;
         transform:translate(-50%,-100%);color:var(--dim);transition:color .2s}
@@ -80,17 +82,20 @@
   #right button{border-left:0;border-right:1px solid var(--line);padding:3px 10px 3px 0;text-align:right}
   #right button[aria-pressed=true]{border-right-color:var(--ink)}
 
-  #readout{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:8;
+  #readout{position:fixed;left:22px;right:260px;bottom:22px;z-index:8;
            text-align:center;font-size:12.4px;letter-spacing:.03em;color:var(--dim);
-           pointer-events:none;max-width:52vw;line-height:1.45}
+           pointer-events:none;line-height:1.45}
   #readout b{color:var(--ink);font-weight:400}
+  #readout .r-title{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  #readout .r-meta,#readout .r-hint{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  #readout .r-hint{color:#b6b3ab}
+  body.cam #readout{left:462px;right:22px}
 
   footer{position:fixed;right:22px;bottom:22px;z-index:8;font-size:11.25px;letter-spacing:.03em;
-         color:#b6b3ab;text-align:right;line-height:1.45;pointer-events:none}
+         color:#b6b3ab;text-align:right;line-height:1.45;pointer-events:none;max-width:240px}
 
   #eye{position:fixed;left:22px;bottom:22px;width:128px;height:128px;border-radius:50%;
-       overflow:hidden;z-index:8;pointer-events:none;background:#fff;display:none;
-       box-shadow:0 0 0 1px var(--line),0 0 0 7px rgba(255,255,255,.85),0 0 0 8px var(--line)}
+       overflow:hidden;z-index:8;pointer-events:none;background:#fff;display:none}
   #eye.on{display:block}
   #eye video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.9}
   #eye canvas{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1)}
@@ -133,7 +138,7 @@
   @media (max-width:760px){
     .panel,footer,#gestures{display:none!important}
     #camOff.on{display:block!important}
-    #readout{max-width:90vw}
+    #readout{left:22px;right:22px}
   }
 </style>
 
@@ -429,12 +434,16 @@ function step(d){
 }
 var prevZone=document.getElementById('prevZone'), nextZone=document.getElementById('nextZone');
 prevZone.onclick=function(){ step(-1); }; nextZone.onclick=function(){ step(1); };
+function plateCaption(q, hint){
+  var html='<div class="r-title"><b>'+String(q.p[0]).padStart(3,'0')+'</b> &nbsp; '+esc(q.p[1].replace(/\.\s*$/,''))+'</div>'+
+    '<div class="r-meta">'+code(q)+' &nbsp; '+regionName(q.key)+(q.p[2]?' &nbsp; '+q.p[2]:'')+'</div>';
+  if(hint) html+='<div class="r-hint">'+hint+'</div>';
+  return html;
+}
 function showFocus(){
   prevZone.classList.toggle('on',!!focus); nextZone.classList.toggle('on',!!focus);
   if(focus){
-    readout.innerHTML='<b>'+String(focus.p[0]).padStart(3,'0')+'</b> &nbsp; '+esc(focus.p[1].replace(/\.\s*$/,''))+
-      '<br>'+code(focus)+' &nbsp; '+regionName(focus.key)+' &nbsp; '+focus.p[2]+
-      '<br><span style="color:#b6b3ab">'+(handActive?'Pinch again to open':'Click again to open')+'</span>';
+    readout.innerHTML=plateCaption(focus, handActive?'Pinch again to open':'Click again to open');
   } else readout.innerHTML=filterText();
 }
 
@@ -605,8 +614,7 @@ function setHover(q){
   document.body.classList.toggle('over', !!(q && !dragging && !focus));
   if(focus) return;
   if(!q){ readout.innerHTML=filterText(); return; }
-  readout.innerHTML='<b>'+String(q.p[0]).padStart(3,'0')+'</b> &nbsp; '+esc(q.p[1].replace(/\.\s*$/,''))+
-    '<br>'+code(q)+' &nbsp; '+regionName(q.key);
+  readout.innerHTML=plateCaption(q);
 }
 function filterText(){
   if(!filter) return '';
@@ -849,6 +857,7 @@ function setCamUI(on){
   document.getElementById('eye').classList.toggle('on', on);
   camOff.classList.toggle('on', on);
   gestEl.classList.toggle('on', on);
+  document.body.classList.toggle('cam', on);
   document.getElementById('foot').style.display = on ? 'none' : '';
   if(!on) state.textContent='Camera off';
 }
