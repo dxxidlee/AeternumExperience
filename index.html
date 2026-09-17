@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Aeternum Experience</title>
-<link rel="icon" href="favicon-1.png" type="image/png">
+<link rel="icon" href="favicon-2.png" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
   :root{ --ink:#111; --dim:#8b8880; --line:#d8d5cd; --bg:#fff;
@@ -30,18 +30,18 @@
   #reticle.open i{transform:scale(1.4);border-style:dashed}
   #reticle.target i{transform:scale(1.25)}
 
-  .edge{position:fixed;top:30vh;bottom:30vh;width:112px;z-index:9;display:none;align-items:center;
-        font-size:13.75px;letter-spacing:.04em;color:var(--ink)}
+  .edge{position:fixed;top:30vh;bottom:30vh;width:101px;z-index:9;display:none;align-items:center;
+        font-size:12.4px;letter-spacing:.04em;color:var(--ink)}
   .edge.on{display:flex}
   .edge.hot{color:var(--ink);background:linear-gradient(90deg,rgba(17,17,17,.04),transparent)}
   #prevZone{left:0;justify-content:flex-start;padding-left:22px}
   #nextZone{right:0;justify-content:flex-end;padding-right:22px}
   #nextZone.hot{background:linear-gradient(270deg,rgba(17,17,17,.04),transparent)}
 
-  #gestures{position:fixed;left:166px;bottom:24px;z-index:8;display:none;font-size:13.125px;
-            letter-spacing:.03em;color:#b6b3ab;line-height:1.85}
+  #gestures{position:fixed;left:166px;bottom:24px;z-index:8;display:none;font-size:11.8px;
+            letter-spacing:.03em;color:#b6b3ab;line-height:1.5}
   #gestures.on{display:block}
-  #gestures div b{display:inline-block;width:115px;font-weight:400}
+  #gestures div b{display:inline-block;width:104px;font-weight:400}
   #gestures div.on{color:var(--ink)}
   #labels{position:fixed;inset:0;z-index:5;pointer-events:none}
   #labels button{position:absolute;left:0;top:0;pointer-events:auto;font-size:12px;
@@ -57,10 +57,10 @@
      font-variant-numeric:lining-nums}
 
   .panel{position:fixed;top:50px;z-index:8;display:flex;flex-direction:column}
-  .panel h2{font-size:11.875px;font-weight:400;letter-spacing:.04em;color:#b6b3ab;margin:14px 0 4px}
+  .panel h2{font-size:10.7px;font-weight:400;letter-spacing:.04em;color:#b6b3ab;margin:14px 0 4px}
   .panel h2:first-child{margin-top:0}
   .menu{display:flex;flex-direction:column;margin-bottom:5px}
-  .menu-t{border:0!important;padding:0 0 3px!important;font-size:11.875px;letter-spacing:.04em;
+  .menu-t{border:0!important;padding:0 0 3px!important;font-size:10.7px;letter-spacing:.04em;
         color:#b6b3ab;display:flex;align-items:center;gap:8px;width:100%}
   .menu-t::after{content:"";width:0;height:0;border-left:3.5px solid transparent;
         border-right:3.5px solid transparent;border-top:4px solid currentColor;opacity:.75;
@@ -69,24 +69,24 @@
   .menu.open .menu-t::after{transform:rotate(180deg)}
   .menu-b{display:none;flex-direction:column;max-height:min(58vh,480px);overflow:auto}
   .menu.open .menu-b{display:flex}
-  .panel button{border-left:1px solid var(--line);padding:3px 0 3px 10px;font-size:13.125px;
+  .panel button{border-left:1px solid var(--line);padding:3px 0 3px 10px;font-size:11.8px;
         letter-spacing:.03em;color:var(--dim);text-align:left;transition:color .2s,border-color .2s}
   .panel button:hover{color:var(--ink)}
   .panel button[aria-pressed=true]{color:var(--ink);border-left-color:var(--ink)}
   .panel button:disabled{color:#d4d1c9;cursor:default}
   .ct{color:#c3c0b8;margin-left:6px}
-  #left{left:22px;max-width:300px}
+  #left{left:22px;max-width:270px}
   #right{right:22px;align-items:flex-end;text-align:right}
   #right button{border-left:0;border-right:1px solid var(--line);padding:3px 10px 3px 0;text-align:right}
   #right button[aria-pressed=true]{border-right-color:var(--ink)}
 
   #readout{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:8;
-           text-align:center;font-size:13.75px;letter-spacing:.03em;color:var(--dim);
-           pointer-events:none;max-width:52vw;line-height:1.7}
+           text-align:center;font-size:12.4px;letter-spacing:.03em;color:var(--dim);
+           pointer-events:none;max-width:52vw;line-height:1.45}
   #readout b{color:var(--ink);font-weight:400}
 
-  footer{position:fixed;right:22px;bottom:22px;z-index:8;font-size:12.5px;letter-spacing:.03em;
-         color:#b6b3ab;text-align:right;line-height:1.9;pointer-events:none}
+  footer{position:fixed;right:22px;bottom:22px;z-index:8;font-size:11.25px;letter-spacing:.03em;
+         color:#b6b3ab;text-align:right;line-height:1.45;pointer-events:none}
 
   #eye{position:fixed;left:22px;bottom:22px;width:128px;height:128px;border-radius:50%;
        overflow:hidden;z-index:8;pointer-events:none;background:#fff;display:none;
@@ -95,7 +95,7 @@
   #eye video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.9}
   #eye canvas{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1)}
   #camOff{position:fixed;left:166px;bottom:142px;z-index:9;display:none;
-          text-align:left;font-size:13.125px;letter-spacing:.03em;color:var(--ink);
+          text-align:left;font-size:11.8px;letter-spacing:.03em;color:var(--ink);
           padding:0}
   #camOff.on{display:block}
   #camOff:hover{color:var(--dim)}
@@ -114,17 +114,17 @@
                font-style:normal;color:var(--ink);font-variant-numeric:lining-nums}
   #plate .type div{line-height:.9;letter-spacing:-.05em;text-transform:uppercase;
                    text-align:center;white-space:nowrap;font-variant-numeric:lining-nums}
-  #plate .corner{position:absolute;bottom:20px;font-size:15px;letter-spacing:.04em;
+  #plate .corner{position:absolute;bottom:20px;font-size:13.5px;letter-spacing:.04em;
                  font-variant-numeric:lining-nums}
   #plate .corner.l{left:22px} #plate .corner.r{right:22px}
-  #plate .top{position:absolute;top:20px;font-size:12.5px;letter-spacing:.04em;
-              color:var(--dim);line-height:1.8}
+  #plate .top{position:absolute;top:20px;font-size:11.25px;letter-spacing:.04em;
+              color:var(--dim);line-height:1.45}
   #plate .top.l{left:22px} #plate .top.r{right:22px;text-align:right}
   #plate .top a{color:var(--dim);text-decoration:none;border-bottom:1px solid var(--line)}
   #plate .top a:hover{color:var(--ink)}
   #plate .nav{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);
-              font-size:12.5px;letter-spacing:.04em;color:var(--dim)}
-  #plate .nav button{font-size:12.5px;letter-spacing:.04em;color:var(--ink);padding:0 10px}
+              font-size:11.25px;letter-spacing:.04em;color:var(--dim)}
+  #plate .nav button{font-size:11.25px;letter-spacing:.04em;color:var(--ink);padding:0 10px}
   #plate .nav button:hover{color:var(--ink)}
 
   body.focused .panel,body.focused footer{opacity:.12}
